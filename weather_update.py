@@ -70,13 +70,13 @@ def agr_get_hour_data (station = '466910', start_time = '2021-08-24', end_time =
         r1_parsed = json.loads(r1.text)['result']
     except Exception as e:
         r1_parsed=[]
-        print('r1 parse error: ',e, r1.text)
+        #print('r1 parse error: ',e, r1.text)
         
     try:
         r2_parsed = json.loads(r2.text)['result']
     except Exception as e:
         r2_parsed=[]
-        print('r2 parse error: ',e, r2.text)
+        #print('r2 parse error: ',e, r2.text)
 
     
     #only one of r1 and r2 will contain required data
@@ -233,18 +233,13 @@ with concurrent.futures.ThreadPoolExecutor() as executor:
         for year in range(sta_info['end'].year, sta_info['end'].year +1):
             CSV_PATH = os.path.join(DIR_PATH,sta_info['sta_no']+'_'+str(year)+'.csv')
             try:
-                #Check if file is already downloded
-                if os.path.isfile(CSV_PATH) == False:
-                    print ('Try downloading',index, sta_info['sta_no'], year)
-                    future = executor.submit(
-                                                agr_fetch_year_full, sta_info['sta_no'], 
-                                                year, 
-                                                CSV_PATH
-                                            )
-                    futures.append(future)
-                else:
-                    1
-                    #print(CSV_PATH, 'already downloaded, skipped')
+                print ('Try downloading',index, sta_info['sta_no'], year)
+                future = executor.submit(
+                                            agr_fetch_year_full, sta_info['sta_no'], 
+                                            year, 
+                                            CSV_PATH
+                                        )
+                futures.append(future)
             except Exception as e:
                 print(e)
     #wait job to be finished
