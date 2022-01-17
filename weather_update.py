@@ -208,7 +208,7 @@ def agr_factor_to_df (d):
 # In[169]:
 
 
-sta_list = load_weather_station_list(include_suspended = True)
+sta_list = load_weather_station_list(include_suspended = False)
 print('Weather station list downloaded')
 
 # In[170]:
