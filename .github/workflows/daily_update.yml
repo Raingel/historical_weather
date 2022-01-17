@@ -21,7 +21,7 @@ jobs:
       run: |
         python weather_update.py
     - name: Commit files
-			continue-on-error: true
+      continue-on-error: true
       run: |
         git config --global user.email "allenstorm2005@gmail.com"
         git config --global user.name "Raingel(Github Action)"
