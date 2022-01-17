@@ -1,8 +1,6 @@
 name: daily_update
 
 on:
-  push:
-    branches: [ main ]
   schedule:
     - cron: "0 14 * * *"
   workflow_dispatch:
