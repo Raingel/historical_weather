@@ -1,5 +1,5 @@
 # 臺灣歷史氣象觀測資料庫 
-# Taiwan Historical W
+# Taiwan Historical Weather Database
 
 ## 資料來源 Sources of data
 
