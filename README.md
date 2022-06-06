@@ -29,7 +29,7 @@ https://mycolab.pp.nchu.edu.tw/historical_weather/
 
 ## 注意事項 Note
 
-使用此資料時，請務必註明資料來源為中央氣象局建置之氣象觀測站或農委會之農業氣象觀測網(站)。
+使用此資料時，請務必註明資料來源為中央氣象局建置之氣象觀測站(https://e-service.cwb.gov.tw/HistoryDataQuery/)或農委會之農業氣象觀測網(https://agr.cwb.gov.tw/NAGR/history/station_day)。
 
 When using these data, please be sure to indicate that the source of the data is from the meteorological observation stations established by the Central Weather Bureau (CWB) or the Agricultural Meteorological Observation Network (Station) of the Council of Agriculture (CoA).
 
