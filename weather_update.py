@@ -174,7 +174,8 @@ def agr_fetch_year_full (station_num=467080, year='2021', save_path = ''):
         else:
             end_time = (parse('{}/{}/{}'.format(year,month + 1,'1')) - timedelta(days = 1)).strftime('%Y/%m/%d')
         data_list = agr_get_hour_data(station=station_num,start_time=start_time, end_time=end_time, items=sta_item)
-        df = df.append(agr_factor_to_df(data_list))     
+        #df = df.append(agr_factor_to_df(data_list))     #this is the old version
+        df = pd.concat([df, agr_factor_to_df(data_list)])
     if save_path != '':
         df.to_csv(save_path, encoding = 'utf-8-sig')
     print(station_num, year,'downloaded')
