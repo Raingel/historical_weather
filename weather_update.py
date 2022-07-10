@@ -254,6 +254,8 @@ with concurrent.futures.ThreadPoolExecutor() as executor:
                     future.result(timeout=300)
                 except concurrent.futures.TimeoutError:
                     print('Timeout error', future)
+                except requests.exceptions.ConnectTimeout:
+                    print('Connect timeout error', future)
 
             print('All threads finished')
             futures.clear()
@@ -266,6 +268,8 @@ with concurrent.futures.ThreadPoolExecutor() as executor:
             future.result(timeout=300)
         except concurrent.futures.TimeoutError:
             print('Timeout error', future)
+        except requests.exceptions.ConnectTimeout:
+            print('Connect timeout error', future)
 
 
 # %%
