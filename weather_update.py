@@ -1,3 +1,4 @@
+# %%
 ROOT = './'
 
 import pandas as pd
@@ -6,6 +7,8 @@ from dateutil.parser import parse
 import json
 from datetime import datetime, timedelta
 import os
+
+# %%
 
 def agr_get_sta_list(area_id=0, level_id=0):
     my_headers = {    
@@ -58,8 +61,8 @@ my_headers = {
 
 def agr_get_hour_data (station = '466910', start_time = '2021-08-24', end_time = '2021-08-24', items=['PrecpHour']):
     get_hour = "https://agr.cwb.gov.tw/NAGR/history/station_hour/get_station_hour"
-    #資料有可能存在「自動站」的資料庫
-    #資料庫對自動站及農業站的日期處理行為不同
+    #Data may exist in the "Automatic Station" database
+    #The database has different date processing behaviors for automatic and agricultural stations
     start_time_dt = parse(start_time)
     end_time_dt = parse(end_time)
     r1 = requests.post(get_hour, data = {'station' : station, 'start_time': start_time_dt.strftime('%Y%m%d'), 'end_time': end_time_dt.strftime('%Y%m%d'), 'items[]': items, 'level': ''}, headers = my_headers)
@@ -131,7 +134,7 @@ def agr_fetch (station_num=467080, date='2021-08-16'):
     #initialize the dataFrame
     station='C0Z200'
     df = pd.DataFrame(columns = output_columns.values())
-    #如果items裡面放了他資料庫沒有的東西，會發生錯誤。所以得自己先確認交集
+    #If the items variable contains something that is not in the database, an error will occur. So you have to check the intersection first
     sta_item = set(output_columns.keys()).intersection(agr_get_items(station_num))
     d = agr_get_hour_data(station=station_num,start_time=date, end_time=date, items=sta_item)
     df['觀測時間(hour)'] = pd.date_range(date+' 01:00:00', periods=24, freq='1h')
@@ -205,32 +208,33 @@ def agr_factor_to_df (d):
     return df
 
 
-# In[169]:
-
-
+# %%
 sta_list = load_weather_station_list(include_suspended = False)
 print('Weather station list downloaded')
 
-# In[170]:
 
-
+# %%
 import concurrent.futures
-
-
-# In[171]:
-
 with concurrent.futures.ThreadPoolExecutor() as executor:
     for index, row in sta_list[:].iterrows():
         sta_info = {}
         sta_info ['sta_no'] = row[0]
         sta_info ['sta_name'] = row[1]
+        #Because the suspended weather station has been pre-downloaded
+        #So no need to consider the problems of the already suspended weather station
         sta_info ['end'] = datetime.today()
         DIR_PATH = os.path.join(ROOT,'data',sta_info ['sta_no'])
         os.makedirs(DIR_PATH, exist_ok=True)
         #start multi-threading download
         futures=[]
         #loop over all years
-        for year in range(sta_info['end'].year, sta_info['end'].year +1):
+        if datetime.today().strftime('%m%d') == '0101':
+            #if it is the first day of the year, update the last year
+            years = [datetime.today().year - 1, datetime.today().year]
+        else:
+            years = [sta_info['end'].year]
+            
+        for year in years:
             CSV_PATH = os.path.join(DIR_PATH,sta_info['sta_no']+'_'+str(year)+'.csv')
             try:
                 print ('Try downloading',index, sta_info['sta_no'], year)
@@ -242,10 +246,29 @@ with concurrent.futures.ThreadPoolExecutor() as executor:
                 futures.append(future)
             except Exception as e:
                 print(e)
+        #wait for threads to finish for every 5 stations
+        if index % 5 == 0:
+            print('Waiting for all threads to finish')
+            for future in futures:
+                try:
+                    future.result(timeout=300)
+                except concurrent.futures.TimeoutError:
+                    print('Timeout error', future)
+
+            print('All threads finished')
+            futures.clear()
+            print('Clear futures')          
+
     #wait job to be finished
-    try:
-        for future in futures:
+    print('Waiting for all threads to finish')
+    for future in futures:
+        try:
             future.result(timeout=300)
-    except concurrent.futures.TimeoutError:
-        print('Timeout error', future)
+        except concurrent.futures.TimeoutError:
+            print('Timeout error', future)
+
+
+# %%
+
+
 
