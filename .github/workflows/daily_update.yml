@@ -19,7 +19,7 @@ jobs:
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     - name: exec weather_update.py
       run: |
-        python weather_update.py
+        python weather_update.py --type daily
     - name: Commit files
       continue-on-error: true
       run: |
