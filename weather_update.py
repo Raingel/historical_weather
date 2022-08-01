@@ -364,7 +364,7 @@ with concurrent.futures.ThreadPoolExecutor() as executor:
             except Exception as e:
                 print(e)
         #wait for threads to finish for every 5 stations
-        if index % 20 == 0:
+        if index % 5 == 0:
             print('Waiting for all threads to finish')
             for future in futures:
                 try:
