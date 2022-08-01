@@ -235,8 +235,12 @@ def agr_get_daily_data (station = '466910', start_time = '2021-08-16', end_time 
     get_hour = "https://agr.cwb.gov.tw/NAGR/history/station_day/get_station_day"
     start_time_dt = parse(start_time)
     end_time_dt = parse(end_time)
-    r1 = requests.post(get_hour, data = {'station' : station, 'start_time': start_time_dt.strftime('%Y%m%d'), 'end_time': end_time_dt.strftime('%Y%m%d'), 'items[]': items, 'level': ''}, headers = my_headers)
-    r2 = requests.post(get_hour, data = {'station' : station, 'start_time': start_time_dt.strftime('%Y%m%d'), 'end_time': end_time_dt.strftime('%Y%m%d'), 'items[]': items, 'level': '自動站'}, headers = my_headers)
+    try:
+        r1 = requests.post(get_hour, data = {'station' : station, 'start_time': start_time_dt.strftime('%Y%m%d'), 'end_time': end_time_dt.strftime('%Y%m%d'), 'items[]': items, 'level': ''}, headers = my_headers)
+        r2 = requests.post(get_hour, data = {'station' : station, 'start_time': start_time_dt.strftime('%Y%m%d'), 'end_time': end_time_dt.strftime('%Y%m%d'), 'items[]': items, 'level': '自動站'}, headers = my_headers)
+    except Exception as e:
+        print(e)
+        return []
     #return r1.text,r2.text
     #Try parsing return data
     try:
@@ -368,7 +372,7 @@ with concurrent.futures.ThreadPoolExecutor() as executor:
             print('Waiting for all threads to finish')
             for future in futures:
                 try:
-                    future.result(timeout=300)
+                    future.result(timeout=500)
                 except concurrent.futures.TimeoutError:
                     print('Timeout error', future)
 
