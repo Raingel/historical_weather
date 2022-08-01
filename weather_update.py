@@ -90,8 +90,11 @@ def agr_get_hour_data (station = '466910', start_time = '2021-08-24', end_time =
     #The database has different date processing behaviors for automatic and agricultural stations
     start_time_dt = parse(start_time)
     end_time_dt = parse(end_time)
-    r1 = requests.post(get_hour, data = {'station' : station, 'start_time': start_time_dt.strftime('%Y%m%d'), 'end_time': end_time_dt.strftime('%Y%m%d'), 'items[]': items, 'level': ''}, headers = my_headers)
-    r2 = requests.post(get_hour, data = {'station' : station, 'start_time': start_time_dt.strftime('%Y%m%d'), 'end_time': end_time_dt.strftime('%Y%m%d'), 'items[]': items, 'level': '自動站'}, headers = my_headers)
+    try:
+        r1 = requests.post(get_hour, data = {'station' : station, 'start_time': start_time_dt.strftime('%Y%m%d'), 'end_time': end_time_dt.strftime('%Y%m%d'), 'items[]': items, 'level': ''}, headers = my_headers)
+        r2 = requests.post(get_hour, data = {'station' : station, 'start_time': start_time_dt.strftime('%Y%m%d'), 'end_time': end_time_dt.strftime('%Y%m%d'), 'items[]': items, 'level': '自動站'}, headers = my_headers)
+    except Exception as e:
+        return []
     #return r1.text,r2.text
     #Try parsing return data
     try:
