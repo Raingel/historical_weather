@@ -27,6 +27,7 @@ jobs:
         git config --global user.name "Raingel(Github Action)"
         git add .
         git commit -m "`date '+%Y-%m-%d %H:%M:%S'`"
+        git pull
     - name: Push changes
       continue-on-error: true
       uses: ad-m/github-push-action@master
