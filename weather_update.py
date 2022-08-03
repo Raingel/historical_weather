@@ -102,6 +102,8 @@ def getDataByCsvAPI(STA = '466900', start_time='2020-08-16', end_time='2020-09-1
         df.drop(['測站代碼'], axis=1, inplace=True)
         df['date'] = pd.to_datetime(df['date'])
         df['date'] = df['date'].apply(add_2359)
+        df.index = df['date'].to_list()
+        df.drop(['date'], axis=1, inplace=True)
     except Exception as e:
         print(e)
         return pd.DataFrame()
