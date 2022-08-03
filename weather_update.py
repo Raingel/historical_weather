@@ -202,7 +202,10 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
                 continue
             if index % 10 == 0:
                 for future in futures:
-                    future.result()
+                    try:
+                        future.result()
+                    except Exception as e:
+                        print(e)
 
 # %%
 
