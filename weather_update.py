@@ -1,15 +1,15 @@
 # %%
-
-import sys
-import argparse
-ROOT = './'
 import pandas as pd
-import requests
-from dateutil.parser import parse
+from requests import get,post
 import json
+from dateutil.parser import parse
+import io
+from collections import OrderedDict
 from datetime import datetime, timedelta
 import os
 
+# %%
+import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("-t",
                     "--type",
@@ -34,8 +34,91 @@ args, unknown = parser.parse_known_args()
 ALL = args.all
 OVERWRITE = args.overwrite
 TYPE = args.type
+assert TYPE in ["daily", "hourly"], "Type must be either daily or hourly"
 
+# %%
+my_headers = {    
+    "accept": "application/json, text/javascript, */*; q=0.01",
+    "accept-language": "ja-JP,ja;q=0.9,zh-TW;q=0.8,zh;q=0.7,en-US;q=0.6,en;q=0.5",
+    "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
+    "sec-ch-ua": "\"Chromium\";v=\"92\", \" Not A;Brand\";v=\"99\", \"Google Chrome\";v=\"92\"",
+    "sec-ch-ua-mobile": "?0",
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-origin",
+    "x-requested-with": "XMLHttpRequest", #required
+}
 
+# %%
+def dictToGET(d):
+    return '&'.join(['{}={}'.format(k,v) for k,v in d.items()])
+def agr_get_items (station = '466910', type = 'hourly'): #check available fields
+    if type == 'daily':
+        get_items_URI = "https://agr.cwb.gov.tw/NAGR/history/station_day/get_items"
+    elif type == 'hourly':
+        get_items_URI = "https://agr.cwb.gov.tw/NAGR/history/station_hour/get_items"
+    r = post(get_items_URI, data = {'station': station},  headers= my_headers)
+    i = json.loads(r.text)
+    d = {t['item']: t['cname'] for t in i['items']}
+    if d == {}:
+        return {}
+    orderedD = OrderedDict()
+    for e in i['columns']:
+        orderedD[d[e]] = e 
+    return orderedD
+    try:
+        return {t['cname']: t['item'] for t in i['items']}
+    except:
+        return r.text
+def replaceListByDict(l, d):
+    d['觀測時間'] = 'date'
+    return [d[i] if i in d else i for i in l]
+
+# %%
+def getDataByCsvAPI(STA = '466900', start_time='2020-08-16', end_time='2020-09-13', type='hourly', save_path = ''):
+    #print("Downloading data from {} to {}".format(start_time, end_time))
+    #STA = '466900'
+    if type=='hourly':
+        URI = 'https://agr.cwb.gov.tw/NAGR/history/station_hour/create_report'     
+    elif type=='daily':
+        URI = 'https://agr.cwb.gov.tw/NAGR/history/station_day/create_report'
+    items = agr_get_items(STA, type)
+    data = {
+        'station': STA,
+        'start_time': parse(start_time).strftime('%Y-%m-%d'),
+        'end_time': parse(end_time).strftime('%Y-%m-%d'),
+        'items': ','.join(items.values()),
+        'report_type':'csv_time',
+        'level': '自動站'
+    }
+    if STA[0:2] not in ['46','C0','C1']:
+        data['level'] = ''
+    try:
+        r = get(URI+'?'+dictToGET(data))
+        r.encoding='big5'
+        rio = io.StringIO(r.text)
+        df = pd.read_csv(rio,encoding='big5', skiprows=[0], on_bad_lines = 'skip')
+        df.columns = replaceListByDict(df.columns, items)
+        df.drop(['測站代碼'], axis=1, inplace=True)
+        df['date'] = pd.to_datetime(df['date'])
+        df['date'] = df['date'].apply(add_2359)
+    except Exception as e:
+        print(e)
+        return pd.DataFrame()
+    if save_path != '':
+        if os.path.exists(save_path) and not OVERWRITE:
+            print("File already exists. Skipping...")
+            return pd.DataFrame()
+        df.to_csv(save_path, index=False)
+        print ("Saved to {}".format(save_path))
+    return df
+def add_2359(d):
+    if d.strftime('%H%M') == '2359':
+        return d + pd.Timedelta(minutes=1)
+    else:
+        return d
+
+# %%
 def agr_get_sta_list(area_id=0, level_id=0):
     my_headers = {    
         "accept": "application/json, text/javascript, */*; q=0.01",
@@ -51,7 +134,7 @@ def agr_get_sta_list(area_id=0, level_id=0):
     URI = 'https://agr.cwb.gov.tw/NAGR/history/station_day/get_station_name'
     area = ['', '北', '中', '南', '東'][area_id]
     level = ['自動站', '新農業站'][level_id]
-    r1 = requests.post(URI, data={'area':area, 'level':level}, headers = my_headers)
+    r1 = post(URI, data={'area':area, 'level':level}, headers = my_headers)
     sta_dict = json.loads(r1.text)
     df = pd.DataFrame(sta_dict)
     extract_df = df[['ID', 'Cname', 'Altitude', 'Latitude_WGS84', 'Longitude_WGS84', 'Address', 'StnBeginTime', 'stnendtime', 'stationlist_auto']]
@@ -68,312 +151,58 @@ def load_weather_station_list(include_suspended = False, include_agr_sta = True)
         weather_station_list = pd.concat([weather_station_list, agr_get_sta_list(level_id = 1)], ignore_index = True)
     return weather_station_list
 
-
-# In[168]:
-
-
-#Fetch From https://agr.cwb.gov.tw/NAGR/history/station_day
-my_headers = {    
-    "accept": "application/json, text/javascript, */*; q=0.01",
-    "accept-language": "ja-JP,ja;q=0.9,zh-TW;q=0.8,zh;q=0.7,en-US;q=0.6,en;q=0.5",
-    "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
-    "sec-ch-ua": "\"Chromium\";v=\"92\", \" Not A;Brand\";v=\"99\", \"Google Chrome\";v=\"92\"",
-    "sec-ch-ua-mobile": "?0",
-    "sec-fetch-dest": "empty",
-    "sec-fetch-mode": "cors",
-    "sec-fetch-site": "same-origin",
-    "x-requested-with": "XMLHttpRequest", #required
-}
-
-def add_1min_to_2359 (d):
-    if d.strftime('%H%M')=='2359':
-        d += timedelta(minutes=1)
-    return d
-
-def agr_factor_to_df (d):
-    df = pd.DataFrame()
-    for r in d:
-        keys = list(r[0])
-        keys.remove('ObsTime')
-        #There will be two keys in the data, one is the observation time, and the other is the query data
-        factor_key = keys[0]
-        data = [row[factor_key] for row in r]
-        ObsTime = [parse(row['ObsTime']) for row in r]
-        ObsTime = list(map(add_1min_to_2359 , ObsTime))
-        df_temp = pd.DataFrame(index = ObsTime)
-        df_temp[factor_key] = data
-        #Seldomly 23:59 and 00:00 are simultaneously present in the same dataset
-        #which will cause duplicated keys after adding 1 minitues to 23:59
-        #e.g. sta_no 72C440 2016/10/18-2016/10/20            
-        df_temp = df_temp[~df_temp.index.duplicated(keep='last')]
-        if df.empty:
-            df = df_temp.copy()
-        else: 
-            df = pd.merge(df, df_temp, left_index=True, right_index=True, how='outer')
-    return df
-
-
-def agr_get_items (station = '466910'): #check available fields
-    get_items_URI = "https://agr.cwb.gov.tw/NAGR/history/station_day/get_items"
-    r = requests.post(get_items_URI, data = {'station': station},  headers= my_headers)
-    try:
-        return json.loads(r.text)['columns']
-    except:
-        return r.text
-    
-def agr_parsing (f):
-    try:
-        rt = list(f.values())[0]
-        rt = float(rt)
-        if rt < -90:
-            return -999
-        return rt
-    except Exception as e:
-        return -999
-    
-    
-def agr_fetch (station_num=467080, date='2021-08-16'):
-    #Not in use
-    output_columns = {
-        'StaNO': '站號',
-        'ObsTime': '觀測時間(hour)',
-        'StnPres': '測站氣壓(hPa)',
-        'SeaPres': '海平面氣壓(hPa)',
-        'Tx': '氣溫(℃)',
-        'Td': '露點溫度(℃)',
-        'RH': '相對溼度(%)',
-        'WS': '風速(m/s)',
-        'WD': '風向(360degree)',
-        'WSGust': '最大陣風(m/s)',
-        'WDGust': '最大陣風風向(360degree)',
-        'Precp': '降水量(mm)',
-        'PrecpHr': '降水時數(hr)',
-        'SunShine': '日照時數(hr)',
-        'GloblRad': '全天空日射量(MJ/㎡)',
-        'Visb': '能見度(km)',
-        'UVI': '紫外線指數',
-        'Cloud':'總雲量(0~10)'}
-    #initialize the dataFrame
-    df = pd.DataFrame(columns = output_columns.values())
-    #If the items variable contains something that is not in the database, an error will occur. So you have to check the intersection first
-    sta_item = set(output_columns.keys()).intersection(agr_get_items(station_num), type='hourly')
-    d = agr_get_data(station=station_num,start_time=date, end_time=date, items=sta_item)
-    df['觀測時間(hour)'] = pd.date_range(date+' 01:00:00', periods=24, freq='1h')
-    df['站號'] = station_num
-    df.set_index('觀測時間(hour)', inplace=True)
-    #if no valid data
-    if (d==[]):
-        return pd.DataFrame()
-    for single_factor in d:
-        for rec in single_factor:
-            #{'StnPres': '924.4', 'ObsTime': '2020-08-15 02:00:00'}
-            ObsTime = parse(rec['ObsTime'])
-            #in case of 8/16 23:59:00
-            if ObsTime.strftime('%H%M')=='2359':
-                ObsTime += timedelta(minutes=1)
-            del rec['ObsTime']
-            #After deleting ObsTime, the last key left is the observation data
-            col_code = list(rec)[0]
-            col_name = output_columns[col_code]
-            #fill the data into the table
-            df.loc[ObsTime,col_name] = rec[col_code]
-
-    df.fillna(-999, inplace=True)
-    df.reset_index(inplace=True)
-    #dt need to be converted to str before enter MySQL
-    df['觀測時間(hour)'] = df['觀測時間(hour)'].dt.strftime('%Y-%m-%d %H:%i:%s')
-    
-    return df
-
-
-def agr_get_data (station = '466910', start_time = '2021-08-24', end_time = '2021-08-24', items=['PrecpHour'], type = 'hourly'):
-    get_hour = "https://agr.cwb.gov.tw/NAGR/history/station_hour/get_station_hour"
-    get_day = "https://agr.cwb.gov.tw/NAGR/history/station_day/get_station_day"
-    URI = get_hour if type == 'hourly' else get_day
-    #Data may exist in the "Automatic Station" database
-    #The database has different date processing behaviors for automatic and agricultural stations
-    #Data will only present in one of the two databases
-    start_time_dt = parse(start_time)
-    end_time_dt = parse(end_time)
-    try:
-        r1 = requests.post(URI, data = {'station' : station, 
-                                        'start_time': start_time_dt.strftime('%Y%m%d'), 
-                                        'end_time': end_time_dt.strftime('%Y%m%d'), 
-                                        'items[]': items, 
-                                        'level': ''
-                                        }, 
-                                        headers = my_headers)
-        r1_parsed = json.loads(r1.text)['result']
-        if r1_parsed != []:
-            return r1_parsed
-    except Exception as e:
-        r1_parsed=[]
-       
-    try:
-        r2 = requests.post(URI, data = {'station' : station, 
-                                        'start_time': start_time_dt.strftime('%Y%m%d'), 
-                                        'end_time': end_time_dt.strftime('%Y%m%d'), 
-                                        'items[]': items, 
-                                        'level': '自動站'}, 
-                                        headers = my_headers)
-        r2_parsed = json.loads(r2.text)['result']
-        if r2_parsed != []:
-            return r2_parsed
-    except Exception as e:
-        r2_parsed=[]
-        #print('r2 parse error: ',e, r2.text)
-        
-    return []
-
-def agr_fetch_year_daily (station_num=467080, year='2021', save_path = ''):
-    #fetch the DAILY data for the whole year
-    sta_item = agr_get_items(station_num)
-    df = pd.DataFrame()
-    for month in range(1,13):
-        start_time = '{}/{}/{}'.format(year,month,'1')
-        if month == 12:
-            end_time = '{}/{}/{}'.format(year,month,'31')
-        else:
-            end_time = (parse('{}/{}/{}'.format(year,month + 1,'1')) - timedelta(days = 1)).strftime('%Y/%m/%d')
-        data_list = agr_get_data(station=station_num,start_time=start_time, end_time=end_time, items=sta_item, type = 'daily')
-        df = pd.concat([df,agr_factor_to_df(data_list)])   
-    if save_path != '':
-        df.to_csv(save_path, encoding = 'utf-8-sig')
-    print(station_num, year,'downloaded')
-    return df
-
-def agr_fetch_year_hourly (station_num=467080, year='2021', save_path = ''):
-    #fetch the HOURLY data for the whole year
-    sta_item = agr_get_items(station_num)
-    df = pd.DataFrame()
-    for month in range(1,13):
-        start_time = '{}/{}/{}'.format(year,month,'1')
-        if month == 12:
-            end_time = '{}/{}/{}'.format(year,month,'31')
-        else:
-            end_time = (parse('{}/{}/{}'.format(year,month + 1,'1')) - timedelta(days = 1)).strftime('%Y/%m/%d')
-        data_list = agr_get_data(station=station_num,start_time=start_time, end_time=end_time, items=sta_item, type = 'hourly')
-        df = pd.concat([df,agr_factor_to_df(data_list)])
-    if save_path != '':
-        df.to_csv(save_path, encoding = 'utf-8-sig')
-    print(station_num, year,'downloaded')
-    return df
-
-#CODIS
-def parse_time (date, h):
-    if h != 24:
-        return parse("{} {}:00".format(date, h))
-    if h == 24:
-        return parse("{} 00:00".format(date, h)) + timedelta(days = 1)
-
-
-def download_from_CODIS (sta_no = '467080', date = '2021-08-16'):
-    URI = "https://e-service.cwb.gov.tw/HistoryDataQuery/DayDataController.do?command=viewMain&station={}&stname=%25E7%25A6%258F%25E5%25B1%25B1&datepicker={}&altitude=405m".format(sta_no, date)
-    try:
-        w_df = pd.read_html(URI, encoding = 'utf-8')[1]
-        #w_df.columns = ['ObsTime','StnPres','SeaPres','Temperature','Td dew point',
-        #'RH','WS','WD','WSGust','WDGust',
-        #'Precp','PrecpHour','SunShine','GloblRad','Visb','UVI','Cloud Amount']
-        w_df.columns = ['觀測時間(hour)', '測站氣壓(hPa)', '海平面氣壓(hPa)', '氣溫(℃)', '露點溫度(℃)',
-       '相對溼度(%)', '風速(m/s)', '風向(360degree)', '最大陣風(m/s)', '最大陣風風向(360degree)',
-       '降水量(mm)', '降水時數(hr)', '日照時數(hr)', '全天空日射量(MJ/㎡)', '能見度(km)', '紫外線指數',
-       '總雲量(0~10)']
-        if len(w_df) == 0:
-            return pd.DataFrame()
-    except:
-        return pd.DataFrame()
-    w_df['觀測時間(hour)'] = w_df['觀測時間(hour)'].apply(lambda x: parse_time(date, x))
-    w_df.replace(['...','/','V','x','&'], float('nan'), inplace = True)
-    w_df.replace('T', 0.05, inplace = True)
-    return w_df
-
-
-
-
 # %%
-
-sta_list = load_weather_station_list(include_suspended = False)
+sta_list = load_weather_station_list(include_suspended = True)
 print('Weather station list downloaded')
 #Problematic data (sta_no='466920',start_date='2022-03-15',end_date='2022-04-20')
 
 # %%
-
 import concurrent.futures
-with concurrent.futures.ThreadPoolExecutor() as executor:
+with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+    futures = []
     for index, row in sta_list[:].iterrows():
-        sta_info = {}
-        sta_info ['sta_no'] = row[0]
-        sta_info ['sta_name'] = row[1]
-        #Because the suspended weather station has been pre-downloaded
-        #So no need to consider the problems of the already suspended weather station
-        sta_info ['start'] = parse(row['資料起始日期']).year
-        sta_info ['end'] = datetime.today().year if (str(row['撤站日期']) == 'nan' or str(row['撤站日期']) == '') else parse(row['撤站日期']).year
-        DIR_PATH = os.path.join(ROOT,'data',sta_info ['sta_no'])
-        os.makedirs(DIR_PATH, exist_ok=True)
-        #start multi-threading download
-        futures=[]
-        #loop over all years
-        if datetime.today().strftime('%m%d') == '0101':
-            #if it is the first day of the year, update the last year
-            years = [datetime.today().year - 1, datetime.today().year]
-        else:
-            years = [datetime.today().year]
-
-        #First Time -- Re-download all years
+        os.makedirs('./data/'+row['站號'], exist_ok=True)
+        #Define year range
         if ALL:
-            years = range(sta_info['start'], sta_info['end'] + 1)
-            
+            try:
+                years = range(int(row['資料起始日期'][0:4]),parse(row['撤站日期']).year+1)
+            except:
+                years = range(int(row['資料起始日期'][0:4]),datetime.today().year+1)
+        else:
+            try:
+                #IF there is end date, skip this station
+                parse(row['撤站日期'])
+                years = []
+            except:
+                years = [datetime.today().year]
+        #loop over years
         for year in years:
-            CSV_PATH_FULL = os.path.join(DIR_PATH,sta_info['sta_no']+'_'+str(year)+'.csv')
-            CSV_PATH_DAILY = os.path.join(DIR_PATH,sta_info['sta_no']+'_'+str(year)+'_daily.csv')
-            #Download full data
+            print(row['站號'], year)
             try:
                 if TYPE == 'hourly':
-                    if not OVERWRITE and os.path.exists(CSV_PATH_FULL):
-                        print('{} already exists'.format(CSV_PATH_FULL))
-                        continue
-                    print ('Try downloading (full/hourly)',index, sta_info['sta_no'], year)
-                    future = executor.submit(
-                                                agr_fetch_year_hourly, sta_info['sta_no'], 
-                                                year, 
-                                                CSV_PATH_FULL
-                                            )
+                    futures.append(executor.submit(getDataByCsvAPI, 
+                                    row['站號'], 
+                                    str(year)+'-01-01', 
+                                    str(year)+'-12-31', 
+                                    'hourly',
+                                    './data/{}/{}_{}.csv'.format(row['站號'],row['站號'], year)
+                                    ))
                 elif TYPE == 'daily':
-                    if not OVERWRITE and os.path.exists(CSV_PATH_DAILY):
-                        print('{} already exists'.format(CSV_PATH_DAILY))
-                        continue
-                    print ('Try downloading (daily)',index, sta_info['sta_no'], year)
-                    future = executor.submit(
-                                                agr_fetch_year_daily, sta_info['sta_no'], 
-                                                year, 
-                                                CSV_PATH_DAILY
-                                            )
-                futures.append(future)
-            except Exception as e:
-                print(e)
-        #wait for threads to finish for every 5 stations
-        if index % 5 == 0:
-            print('Waiting for all threads to finish')
-            for future in futures:
-                try:
-                    future.result(timeout=500)
-                except concurrent.futures.TimeoutError:
-                    print('Timeout error', future)
+                    futures.append(executor.submit(getDataByCsvAPI, 
+                                    row['站號'], 
+                                    str(year)+'-01-01', 
+                                    str(year)+'-12-31', 
+                                    'daily',
+                                    './data/{}/{}_{}_daily.csv'.format(row['站號'],row['站號'], year)
+                                    ))
+            except:
+                print('Error')
+                continue
+            if index % 10 == 0:
+                for future in futures:
+                    future.result()
 
-            print('All threads finished')
-            futures.clear()
-            print('Clear futures')          
-
-    #wait job to be finished
-    print('Waiting for all threads to finish')
-    for future in futures:
-        try:
-            future.result(timeout=500)
-        except concurrent.futures.TimeoutError:
-            print('Timeout error', future)
-
-
-
+# %%
 
 
 
