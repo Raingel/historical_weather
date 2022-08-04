@@ -111,7 +111,7 @@ def getDataByCsvAPI(STA = '466900', start_time='2020-08-16', end_time='2020-09-1
         if os.path.exists(save_path) and not OVERWRITE:
             print("File already exists. Skipping...")
             return pd.DataFrame()
-        df.to_csv(save_path, index=False)
+        df.to_csv(save_path)
         print ("Saved to {}".format(save_path))
     return df
 def add_2359(d):
