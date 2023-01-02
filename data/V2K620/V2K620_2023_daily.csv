@@ -1,0 +1,2 @@
+,StnPres,SeaPres,StnPresMax,StnPresMaxTime,StnPresMin,StnPresMinTime,Tx,TxMaxAbs,TxMaxAbsTime,TxMinAbs,TxMinAbsTime,Td,RH,RHMin,RHMinTime,WS,WD,WSGust,WDGust,WGustTime,Precp,PrecpMax10,PrecpMax10Time,PrecpHrMax,PrecpHrMaxTime
+2023-01-01,1021.1,1022.2,1022.5,2023-01-01 09:24:00,1019.5,2023-01-01 15:10:00,18.4,19.8,2023-01-01 12:32:00,17.5,2023-01-01 04:33:00,15.1,81,76,2023-01-01 12:54:00,5.1,10.0,13.5,20.0,2023-01-01 15:06:00,0.0,0.0,2023-01-01 00:00:00,0.0,2023-01-01 00:00:00

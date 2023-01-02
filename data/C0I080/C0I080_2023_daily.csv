@@ -1,0 +1,2 @@
+,StnPres,StnPresMax,StnPresMaxTime,StnPresMin,StnPresMinTime,Tx,TxMaxAbs,TxMaxAbsTime,TxMinAbs,TxMinAbsTime,RH,RHMin,RHMinTime,WS,WD,WSGust,WDGust,WGustTime,Precp,GloblRad,TxSoil0cm,TxSoil5cm,TxSoil20cm,TxSoil50cm,TxSoil100cm
+2023-01-01,962.7,964.0,2023-01-01 09:50:00,961.5,2023-01-01 16:03:00,17.5,20.4,2023-01-01 11:35:00,15.5,2023-01-01 05:01:00,90,74,2023-01-01 11:35:00,0.2,33.0,3.5,26.0,2023-01-01 20:56:00,0.0,,,,,,
