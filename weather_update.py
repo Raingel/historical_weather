@@ -133,7 +133,7 @@ print('Weather station list downloaded')
 import concurrent.futures
 with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
     futures = []
-    for index, row in sta_list[0:5].iterrows():
+    for index, row in sta_list[:].iterrows():
         os.makedirs('./data/'+row['站號'], exist_ok=True)
         #Define year range
         if ALL:
