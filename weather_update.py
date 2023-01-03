@@ -120,16 +120,20 @@ def add_2359(d):
     else:
         return d
 
+
+
+
 # %%
 sta_list = pd.read_csv('https://raw.githubusercontent.com/Raingel/weather_station_list/main/data/weather_sta_list.csv')
 print('Weather station list downloaded')
 #Problematic data (sta_no='466920',start_date='2022-03-15',end_date='2022-04-20')
 
+
 # %%
 import concurrent.futures
 with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
     futures = []
-    for index, row in sta_list[:].iterrows():
+    for index, row in sta_list[0:5].iterrows():
         os.makedirs('./data/'+row['站號'], exist_ok=True)
         #Define year range
         if ALL:
@@ -144,6 +148,9 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
                 years = []
             except:
                 years = [datetime.today().year]
+                #at the first week of the year, we need to download the last year's data
+                if datetime.today().month == 1 and datetime.today().day < 7:
+                    years.append(datetime.today().year-1)               
         #loop over years
         for year in years:
             print(row['站號'], year)
@@ -175,6 +182,8 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
                         print(e)
 
 # %%
+
+
 
 
 
