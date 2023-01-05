@@ -28,12 +28,17 @@ parser.add_argument("-o",
                     type=str,
                     default=True,
                     help="If true, existing files will be overwritten")
-
+parser.add_argument("-s",
+                    "--Station", 
+                    type=str,
+                    default="",
+                    help="If specified, only the specified station will be retrieved")
 #jupyter會傳一個-f進來，不這樣接會有錯誤
 args, unknown = parser.parse_known_args()
 ALL = args.all
 OVERWRITE = args.overwrite
 TYPE = args.type
+STATION = args.Station
 assert TYPE in ["daily", "hourly"], "Type must be either daily or hourly"
 
 # %%
@@ -97,15 +102,17 @@ def getDataByCsvAPI(STA = '466900', start_time='2020-08-16', end_time='2020-09-1
         r = get(URI+'?'+dictToGET(data))
         r.encoding='big5'
         rio = io.StringIO(r.text)
-        df = pd.read_csv(rio,encoding='big5', skiprows=[0], on_bad_lines = 'skip')
+        df = pd.read_csv(rio,encoding='big5', skiprows=[0], on_bad_lines = 'skip', index_col=False)
         df.columns = replaceListByDict(df.columns, items)
         df.drop(['測站代碼'], axis=1, inplace=True)
+        #discard NaN date, which is occasionally returned by the API
+        df = df[df['date'].isna() == False]
         df['date'] = pd.to_datetime(df['date'])
         df['date'] = df['date'].apply(add_2359)
         df.index = df['date'].to_list()
         df.drop(['date'], axis=1, inplace=True)
     except Exception as e:
-        print(e)
+        print("Error during parsing file:", e)
         return pd.DataFrame()
     if save_path != '':
         if os.path.exists(save_path) and not OVERWRITE:
@@ -120,14 +127,13 @@ def add_2359(d):
     else:
         return d
 
-
-
-
 # %%
 sta_list = pd.read_csv('https://raw.githubusercontent.com/Raingel/weather_station_list/main/data/weather_sta_list.csv')
 print('Weather station list downloaded')
 #Problematic data (sta_no='466920',start_date='2022-03-15',end_date='2022-04-20')
-
+#STATION = "467441"
+if STATION != "":
+    sta_list = sta_list[sta_list['站號']==STATION]
 
 # %%
 import concurrent.futures
@@ -182,8 +188,10 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
                         print(e)
 
 # %%
+#Problematic data
+#getDataByCsvAPI(STA = '467441', start_time='2022-01-01', end_time='2022-12-31', type='daily', save_path = '')
 
-
+# %%
 
 
 
