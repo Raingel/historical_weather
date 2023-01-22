@@ -1,4 +1,4 @@
-name: daily_update
+name: hourly_update
 
 on:
   schedule:
@@ -19,10 +19,7 @@ jobs:
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     - name: exec weather_update.py daily
       run: |
-        python weather_update.py --type daily
-    - name: exec weather_update.py hourly
-      run: |
-        python weather_update.py --type hourly
+        python weather_update_v2_hourly.py
     - name: Commit files
       continue-on-error: true
       run: |
