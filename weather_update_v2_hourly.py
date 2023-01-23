@@ -307,6 +307,21 @@ stations_df = stations_df[(stations_df['stationEndDate'] == "")]
 nagr = NAGR()
 
 # %%
+def thread_pack (sta_id,stn_type,y):
+    print("Processing station: {} for year {}".format(sta_id, y))  
+    if stn_type == 'agr':
+        #if station is agr, use NAGR API
+        output_df = nagr.getDataByCsvAPI(STA = sta_id, start_time= f"{y}-01-01", end_time=f"{y+1}-01-01", type='hourly', save_path = '')
+    else:
+        output_df = codis.get_full_year(sta_id=sta_id, stn_type=stn_type, year = y)
+    if output_df.empty:
+        return pd.DataFrame()
+    output_df.to_csv("data/{}/{}_{}.csv".format(sta_id, sta_id, y))
+    return output_df
+
+# %%
+import threading
+waiting_list = []
 for index, row in stations_df.iterrows():
     os.makedirs("./data/{}".format(row['stationID']), exist_ok=True)
     sta_id = row['stationID']
@@ -329,15 +344,16 @@ for index, row in stations_df.iterrows():
         start_y = datetime.now().year
     end_y = datetime.now().year
     for y in range(start_y, end_y+1):
-        print("Processing station: {} for year {}".format(sta_id, y))  
-        if stn_type == 'agr':
-            #if station is agr, use NAGR API
-            output_df = nagr.getDataByCsvAPI(STA = sta_id, start_time= f"{y}-01-01", end_time=f"{y+1}-01-01", type='hourly', save_path = '')
-        else:
-            output_df = codis.get_full_year(sta_id=sta_id, stn_type=stn_type, year = y)
-        if output_df.empty:
-            continue
-        output_df.to_csv("data/{}/{}_{}.csv".format(sta_id, sta_id, y))
+        #Start multi-threading, max. 10 threads, 1 thread for 1 station, timeout = 60 seconds
+        t = threading.Thread(target=thread_pack, args=(sta_id,stn_type,y))
+        t.start()
+        waiting_list.append(t)
+        while len(waiting_list) >= 5:
+            for t in waiting_list:
+                t.join(timeout=60)
+                if not t.is_alive():
+                    waiting_list.remove(t)
+                    break
 
 # %%
 
