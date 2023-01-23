@@ -1,0 +1,4 @@
+,StnPres,SeaPres,StnPresMax,StnPresMaxTime,StnPresMin,StnPresMinTime,Tx,TxMaxAbs,TxMaxAbsTime,TxMinAbs,TxMinAbsTime,Td,WS,WD,WSGust,WDGust,WGustTime,Precp,PrecpDay,PrecpMax10,PrecpMax10Time,PrecpHrMax,PrecpHrMaxTime,Precp1DayMax,Precp1DayMaxTime,RH,EvapA,SunShine,GloblRad,TxSoil0cm,TxSoil5cm,TxSoil10cm,TxSoil20cm,TxSoil50cm,TxSoil100cm
+2015-01-01,962.6,,1015.5,2015-01-08 10:00:00,1000.3,2015-01-06 16:00:00,14.5,25.3,2015-01-13 13:00:00,0.0,2015-01-27 09:00:00,8.7,2.4,22.5,11.0,45.0,2015-01-09 10:00:00,23.6,7.0,,,,,,,65.0,54.2,0.0,0.68,,16.2,17.3,17.1,18.1,19.6
+2015-02-01,961.9,,1014.7,2015-02-09 10:00:00,998.8,2015-02-25 15:00:00,14.5,26.4,2015-02-21 13:00:00,0.0,2015-02-13 16:00:00,10.2,0.5,45.0,5.2,67.5,2015-02-17 05:00:00,81.0,13.0,,,,,,,72.0,29.2,0.0,0.29,,15.8,17.3,17.0,17.9,19.0
+2015-06-01,,,,,,,,,,,,,,,,,,,,,,,,,,,,,-9999.95,,,,,,
