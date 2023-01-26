@@ -356,7 +356,7 @@ class CODIS:
 codis = CODIS()
 stations_df = codis.get_stations_df()
 #Remove suspended stations (row['stationEndDate'] != "")
-#stations_df = stations_df[(stations_df['stationEndDate'] == "")]
+stations_df = stations_df[(stations_df['stationEndDate'] == "")]
 nagr = NAGR()
 
 # %%
@@ -390,7 +390,7 @@ for index, row in stations_df.iterrows():
             stn_type = 'auto_C1'
     if stn_type == "":
         continue
-    start_y = int(row['stationStartDate'][0:4]) if row['stationStartDate'] != "" else 1991
+    start_y = datetime.now().year
     end_y = datetime.now().year
     for y in range(start_y, end_y+1):
         #Start multi-threading, max. 10 threads, 1 thread for 1 station, timeout = 60 seconds
