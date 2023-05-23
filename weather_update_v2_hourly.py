@@ -286,8 +286,8 @@ class CODIS:
         #fetcher(*_hourly_fetch(sta_id="467490", stn_type='cwb', start=datetime(2022,1,1,0,0,0), end=datetime(2022,3,2,0,0,0)))
         start = datetime(year,1,1,0,0,0)
         while start < datetime(year+1,1,1,0,0,0):
-            #Max. duration cannot exceed 60 days
-            end = start + pd.Timedelta(days=60)
+            #Max. duration cannot exceed 31 days
+            end = start + pd.Timedelta(days=30)
             if end > datetime(year+1,1,1,0,0,0):
                 end = datetime(year+1,1,1,0,0,0)
             raw_data = self.fetcher(*self._hourly_fetch(sta_id=sta_id, stn_type=stn_type, start=start, end=end))
