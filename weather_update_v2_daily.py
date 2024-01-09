@@ -28,9 +28,9 @@ class NAGR:
         return '&'.join(['{}={}'.format(k,v) for k,v in d.items()])
     def agr_get_items (self, station = '466910', type = 'hourly'): #check available fields
         if type == 'daily':
-            get_items_URI = "https://agr.cwb.gov.tw/NAGR/history/station_day/get_items"
+            get_items_URI = "https://agr.cwa.gov.tw/NAGR/history/station_day/get_items"
         elif type == 'hourly':
-            get_items_URI = "https://agr.cwb.gov.tw/NAGR/history/station_hour/get_items"
+            get_items_URI = "https://agr.cwa.gov.tw/NAGR/history/station_hour/get_items"
         r = post(get_items_URI, data = {'station': station},  headers= self.my_headers)
         i = json.loads(r.text)
         d = {t['item']: t['cname'] for t in i['items']}
@@ -52,9 +52,9 @@ class NAGR:
         #print("Downloading data from {} to {}".format(start_time, end_time))
         #STA = '466900'
         if type=='hourly':
-            URI = 'https://agr.cwb.gov.tw/NAGR/history/station_hour/create_report'     
+            URI = 'https://agr.cwa.gov.tw/NAGR/history/station_hour/create_report'     
         elif type=='daily':
-            URI = 'https://agr.cwb.gov.tw/NAGR/history/station_day/create_report'
+            URI = 'https://agr.cwa.gov.tw/NAGR/history/station_day/create_report'
         items = self.agr_get_items(STA, type)
         data = {
             'station': STA,
@@ -91,7 +91,7 @@ class NAGR:
         return df
 class CODIS:
     def _stations_fetch(self):
-        return ("https://codis.cwb.gov.tw/api/station_list", {
+        return ("https://codis.cwa.gov.tw/api/station_list", {
                 "headers": {
                     "accept": "*/*",
                     "accept-language": "ja-JP,ja;q=0.9,zh-TW;q=0.8,zh;q=0.7,en-US;q=0.6,en;q=0.5",
@@ -103,7 +103,7 @@ class CODIS:
                     "sec-fetch-site": "same-origin",
                     "x-requested-with": "XMLHttpRequest"
                 },
-                "referrer": "https://codis.cwb.gov.tw/StationData",
+                "referrer": "https://codis.cwa.gov.tw/StationData",
                 "referrerPolicy": "strict-origin-when-cross-origin",
                 "body": "",
                 "method": "GET",
@@ -111,7 +111,7 @@ class CODIS:
                 "credentials": "include"
                 })
     def _daily_fetch(self, sta_id="467490", stn_type='cwb', start=datetime(2022,8,16,0,0,0), end=datetime(2022,9,13,0,0,0)):
-        return ("https://codis.cwb.gov.tw/api/station?", {
+        return ("https://codis.cwa.gov.tw/api/station?", {
         "headers": {
             "accept": "application/json, text/javascript, */*; q=0.01",
             "accept-language": "ja-JP,ja;q=0.9,zh-TW;q=0.8,zh;q=0.7,en-US;q=0.6,en;q=0.5",
@@ -124,7 +124,7 @@ class CODIS:
             "sec-fetch-site": "same-origin",
             "x-requested-with": "XMLHttpRequest"
         },
-        "referrer": "https://codis.cwb.gov.tw/StationData",
+        "referrer": "https://codis.cwa.gov.tw/StationData",
         "referrerPolicy": "strict-origin-when-cross-origin",
         "body": "",
         "method": "POST",
