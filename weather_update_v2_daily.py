@@ -133,7 +133,7 @@ class CODIS:
         },
         {
             "date": "2022-08-16T00%3A00%3A00.000%2B08%3A00",
-            "type": "table_month",
+            "type": "report_month",
             "stn_ID": sta_id,
             "stn_type": stn_type,
             "start": start.strftime("%Y-%m-%dT00:00:00"),
