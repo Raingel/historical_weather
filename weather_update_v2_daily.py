@@ -339,7 +339,8 @@ class CODIS:
         output_df = pd.DataFrame()
         #fetcher(*_hourly_fetch(sta_id="467490", stn_type='cwb', start=datetime(2022,1,1,0,0,0), end=datetime(2022,3,2,0,0,0)))
         start = datetime(year,1,1,0,0,0)
-        while start < datetime(year+1,1,1,0,0,0):
+        terminate = min(datetime(year+1,1,1,0,0,0), datetime.now())
+        while start < terminate:
             #Max. duration cannot exceed 60 days
             end = start + pd.Timedelta(days=60)
             if end > datetime(year+1,1,1,0,0,0):
