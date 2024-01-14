@@ -339,7 +339,7 @@ for index, row in stations_df.iterrows():
     if stn_type == "":
         continue
 
-    if datetime.now().month == 1:
+    if datetime.now().month == 1 and datetime.now().day < 5:
         start_y = datetime.now().year - 1
     else:
         start_y = datetime.now().year
