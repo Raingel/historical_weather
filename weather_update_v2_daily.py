@@ -380,6 +380,8 @@ def thread_pack (sta_id,stn_type,y):
 
 # %%
 import threading
+import time 
+station_counter = 0 
 waiting_list = []
 for index, row in stations_df.iterrows():
     os.makedirs("./data/{}".format(row['stationID']), exist_ok=True)
@@ -413,7 +415,10 @@ for index, row in stations_df.iterrows():
                 if not t.is_alive():
                     waiting_list.remove(t)
                     break
-
+        station_counter += 1  # 增加计数器
+    if station_counter % 5 == 0:
+        print("暫停一下子，避免頻繁存取", station_counter)
+        time.sleep(5)
 # %%
 
 
