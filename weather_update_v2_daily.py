@@ -409,7 +409,7 @@ for index, row in stations_df.iterrows():
         t = threading.Thread(target=thread_pack, args=(sta_id,stn_type,y))
         t.start()
         waiting_list.append(t)
-        while len(waiting_list) >= 2:
+        while len(waiting_list) >= 1:
             for t in waiting_list:
                 t.join(timeout=60)
                 if not t.is_alive():
