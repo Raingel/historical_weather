@@ -310,12 +310,13 @@ nagr = NAGR()
 # %%
 def thread_pack (sta_id,stn_type,y):
     filename = "data/{}/{}_{}.csv".format(sta_id, sta_id, y)
-    if os.path.exists(filename):
-        mtime = os.path.getmtime(filename)
-        current_time = time.time()
-        if current_time - mtime < 24 * 3600:
-            print("File {} was updated in the last 24 hours. Skipping...".format(filename))
-            return pd.DataFrame()
+    if os.path.exists("log.csv"):
+        log = pd.read_csv("log.csv", index_col=0)
+        if sta_id in log.index:
+            if 'hourly' in log.columns:
+                if pd.to_datetime(log.loc[sta_id, 'hourly']) > datetime.now() - pd.Timedelta(days=1):
+                    print("File {} was updated in the last 24 hours. Skipping...".format(filename))
+                    return pd.DataFrame()
     print("Processing station: {} for year {}".format(sta_id, y))  
     if stn_type == 'agr':
         #if station is agr, use NAGR API
