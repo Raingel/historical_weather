@@ -365,7 +365,7 @@ def thread_pack (sta_id,stn_type,y):
     if os.path.exists(filename):
         mtime = os.path.getmtime(filename)
         current_time = time.time()
-        if current_time - mtime < 24 * 3600 and False:
+        if current_time - mtime < 24 * 3600:
             print("File {} was updated in the last 24 hours. Skipping...".format(filename))
             return pd.DataFrame()
     print("Processing station: {} for year {}".format(sta_id, y))  
@@ -381,9 +381,12 @@ def thread_pack (sta_id,stn_type,y):
         return pd.DataFrame()
     else:
         #將更新紀錄寫在log.csv中,縱index為站號，橫標題為daily, 值 = 更新時間
+        #log.csv可能是空白的檔案，或是已經有部分資料
         print ("Updating log.csv")
-        log = pd.read_csv("log.csv")
-        print(log)
+        if os.path.exists("log.csv"):
+            log = pd.read_csv("log.csv", index_col=0)
+        else:
+            log = pd.DataFrame()
         log.loc[sta_id, 'daily'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         log.to_csv("log.csv")
     return output_df
@@ -418,7 +421,7 @@ for index, row in stations_df.iterrows():
         t = threading.Thread(target=thread_pack, args=(sta_id,stn_type,y))
         t.start()
         waiting_list.append(t)
-        while len(waiting_list) >= 1:
+        while len(waiting_list) >= 2:
             for t in waiting_list:
                 t.join(timeout=60)
                 if not t.is_alive():
@@ -428,3 +431,5 @@ for index, row in stations_df.iterrows():
     if station_counter % 5 == 0:
         print("暫停一下子，避免頻繁存取", station_counter)
         time.sleep(10)
+
+# %%
