@@ -1,3 +1,4 @@
+# %%
 import requests
 from datetime import datetime
 import pandas as pd
@@ -22,7 +23,6 @@ class NAGR:
                                 "sec-fetch-site": "same-origin",
                                 "x-requested-with": "XMLHttpRequest", #required
                             }
-        self.OVERWRITE = False
     def dictToGET(self, d):
         return '&'.join(['{}={}'.format(k,v) for k,v in d.items()])
     def agr_get_items (self, station = '466910', type = 'hourly'): #check available fields
@@ -82,12 +82,6 @@ class NAGR:
             print("Error during parsing file:", e)
             return pd.DataFrame()
         if save_path != '':
-            if os.path.exists(save_path) and not self.OVERWRITE:
-                mtime = os.path.getmtime(save_path)
-                current_time = time.time()
-                if current_time - mtime < 24 * 3600:
-                    print("File {} was updated in the last 24 hours. Skipping...".format(save_path))
-                    return pd.DataFrame()
             df.to_csv(save_path)
             print ("Saved to {}".format(save_path))
         return df
@@ -371,7 +365,7 @@ def thread_pack (sta_id,stn_type,y):
     if os.path.exists(filename):
         mtime = os.path.getmtime(filename)
         current_time = time.time()
-        if current_time - mtime < 24 * 3600:
+        if current_time - mtime < 24 * 3600 and False:
             print("File {} was updated in the last 24 hours. Skipping...".format(filename))
             return pd.DataFrame()
     print("Processing station: {} for year {}".format(sta_id, y))  
@@ -385,8 +379,15 @@ def thread_pack (sta_id,stn_type,y):
             print ("Saved to {}".format(filename))
     if output_df.empty:
         return pd.DataFrame()
+    else:
+        #將更新紀錄寫在log.csv中,縱index為站號，橫標題為daily, 值 = 更新時間
+        print ("Updating log.csv")
+        log = pd.read_csv("log.csv")
+        print(log)
+        log.loc[sta_id, 'daily'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        log.to_csv("log.csv")
     return output_df
-
+# %%
 import threading
 import time 
 station_counter = 0 
@@ -426,4 +427,4 @@ for index, row in stations_df.iterrows():
         station_counter += 1  # 增加计数器
     if station_counter % 5 == 0:
         print("暫停一下子，避免頻繁存取", station_counter)
-        time.sleep(5)
+        time.sleep(10)
