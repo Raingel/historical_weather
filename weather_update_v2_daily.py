@@ -1,4 +1,3 @@
-# %%
 import requests
 from datetime import datetime
 import pandas as pd
@@ -8,8 +7,8 @@ from collections import OrderedDict
 from requests import get,post
 import json
 import io
+import time  # 新增此行
 
-# %%
 class NAGR:
     def __init__(self):    
         self.my_headers = {    
@@ -84,11 +83,15 @@ class NAGR:
             return pd.DataFrame()
         if save_path != '':
             if os.path.exists(save_path) and not self.OVERWRITE:
-                print("File already exists. Skipping...")
-                return pd.DataFrame()
+                mtime = os.path.getmtime(save_path)
+                current_time = time.time()
+                if current_time - mtime < 24 * 3600:
+                    print("File {} was updated in the last 24 hours. Skipping...".format(save_path))
+                    return pd.DataFrame()
             df.to_csv(save_path)
             print ("Saved to {}".format(save_path))
         return df
+
 class CODIS:
     def _stations_fetch(self):
         return ("https://codis.cwa.gov.tw/api/station_list", {
@@ -354,31 +357,36 @@ class CODIS:
             start = end
         return output_df
 
-# %%
 codis = CODIS()
 stations_df = codis.get_stations_df()
 #Remove suspended stations (row['stationEndDate'] != "")
 stations_df = stations_df[(stations_df['stationEndDate'] == "")]
 nagr = NAGR()
 
-# %%
 stations_df.reset_index(inplace=True, drop=True)
 stations_df[-10:]
 
-# %%
 def thread_pack (sta_id,stn_type,y):
+    filename = "data/{}/{}_{}_daily.csv".format(sta_id, sta_id, y)
+    if os.path.exists(filename):
+        mtime = os.path.getmtime(filename)
+        current_time = time.time()
+        if current_time - mtime < 24 * 3600:
+            print("File {} was updated in the last 24 hours. Skipping...".format(filename))
+            return pd.DataFrame()
     print("Processing station: {} for year {}".format(sta_id, y))  
     if stn_type == 'agr':
         #if station is agr, use NAGR API
-        output_df = nagr.getDataByCsvAPI(STA = sta_id, start_time= f"{y}-01-01", end_time=f"{y+1}-01-01", type='daily', save_path = '')
+        output_df = nagr.getDataByCsvAPI(STA = sta_id, start_time= f"{y}-01-01", end_time=f"{y+1}-01-01", type='daily', save_path = filename)
     else:
         output_df = codis.get_full_year(sta_id=sta_id, stn_type=stn_type, year = y)
+        if not output_df.empty:
+            output_df.to_csv(filename)
+            print ("Saved to {}".format(filename))
     if output_df.empty:
         return pd.DataFrame()
-    output_df.to_csv("data/{}/{}_{}_daily.csv".format(sta_id, sta_id, y))
     return output_df
 
-# %%
 import threading
 import time 
 station_counter = 0 
@@ -419,7 +427,3 @@ for index, row in stations_df.iterrows():
     if station_counter % 5 == 0:
         print("暫停一下子，避免頻繁存取", station_counter)
         time.sleep(5)
-# %%
-
-
-
