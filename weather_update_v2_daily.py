@@ -422,7 +422,7 @@ for index, row in stations_df.iterrows():
         t = threading.Thread(target=thread_pack, args=(sta_id,stn_type,y))
         t.start()
         waiting_list.append(t)
-        while len(waiting_list) >= 2:
+        while len(waiting_list) >= 1:
             for t in waiting_list:
                 t.join(timeout=60)
                 if not t.is_alive():
@@ -431,6 +431,6 @@ for index, row in stations_df.iterrows():
         station_counter += 1  # 增加计数器
     if station_counter % 5 == 0:
         print("暫停一下子，避免頻繁存取", station_counter)
-        time.sleep(10)
+        time.sleep(20)
 
 # %%
