@@ -361,6 +361,14 @@ nagr = NAGR()
 
 # %%
 def thread_pack (sta_id,stn_type,y):
+    filename = "data/{}/{}_{}.csv".format(sta_id, sta_id, y)
+    if os.path.exists("log.csv"):
+        log = pd.read_csv("log.csv", index_col=0)
+        if sta_id in log.index:
+            if 'monthly' in log.columns:
+                if pd.to_datetime(log.loc[sta_id, 'monthly']) > datetime.now() - pd.Timedelta(days=1):
+                    print("File {} was updated in the last 24 hours. Skipping...".format(filename))
+                    return pd.DataFrame()
     print("Processing station: {} for year {}".format(sta_id, y))  
     if stn_type == 'agr':
         #if station is agr, use NAGR API
@@ -369,11 +377,21 @@ def thread_pack (sta_id,stn_type,y):
         output_df = codis.get_full_year(sta_id=sta_id, stn_type=stn_type, year = y)
     if output_df.empty:
         return pd.DataFrame()
+    #將更新紀錄寫在log.csv中,縱index為站號，橫標題為daily, 值 = 更新時間
+    #log.csv可能是空白的檔案，或是已經有部分資料
+    print ("Updating log.csv")
+    if os.path.exists("log.csv"):
+        log = pd.read_csv("log.csv", index_col=0)
+    else:
+        log = pd.DataFrame()
+    log.loc[sta_id, 'monthly'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    log.to_csv("log.csv")
     output_df.to_csv("data/{}/{}_{}_monthly.csv".format(sta_id, sta_id, y))
     return output_df
 
 # %%
 import threading
+station_counter = 0
 waiting_list = []
 for index, row in stations_df.iterrows():
     os.makedirs("./data/{}".format(row['stationID']), exist_ok=True)
@@ -403,6 +421,10 @@ for index, row in stations_df.iterrows():
                 if not t.is_alive():
                     waiting_list.remove(t)
                     break
+        station_counter += 1
+        if station_counter % 5 == 0:
+            print("暫停一下子，避免頻繁存取", station_counter)
+            time.sleep(20)
 
 # %%
 
