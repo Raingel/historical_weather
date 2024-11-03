@@ -391,6 +391,7 @@ def thread_pack (sta_id,stn_type,y):
 
 # %%
 import threading
+import time
 station_counter = 0
 waiting_list = []
 for index, row in stations_df.iterrows():
