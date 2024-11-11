@@ -363,7 +363,7 @@ nagr = NAGR()
 def thread_pack (sta_id,stn_type,y):
     filename = "data/{}/{}_{}.csv".format(sta_id, sta_id, y)
     if os.path.exists("log.csv"):
-        log = pd.read_csv("log.csv", index_col=0)
+        log = pd.read_csv("log.csv")
         if sta_id in log.index:
             if 'monthly' in log.columns:
                 if pd.to_datetime(log.loc[sta_id, 'monthly']) > datetime.now() - pd.Timedelta(days=1):
@@ -381,9 +381,9 @@ def thread_pack (sta_id,stn_type,y):
     #log.csv可能是空白的檔案，或是已經有部分資料
     print ("Updating log.csv")
     if os.path.exists("log.csv"):
-        log = pd.read_csv("log.csv", index_col=0)
+        log = pd.read_csv("log.csv")
     else:
-        log = pd.DataFrame(columns=['daily', 'hourly', 'monthly'])
+        log = pd.DataFrame(columns=['sta_id', 'daily', 'hourly', 'monthly'])
     log.loc[sta_id, 'monthly'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     log.to_csv("log.csv")
     output_df.to_csv("data/{}/{}_{}_monthly.csv".format(sta_id, sta_id, y))
