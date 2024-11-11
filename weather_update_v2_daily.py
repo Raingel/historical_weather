@@ -363,7 +363,7 @@ stations_df[-10:]
 def thread_pack (sta_id,stn_type,y):
     filename = "data/{}/{}_{}_daily.csv".format(sta_id, sta_id, y)
     if os.path.exists("log.csv"):
-        log = pd.read_csv("log.csv")
+        log = pd.read_csv("log.csv", index_col='sta_id')
         if sta_id in log.index:
             if 'daily' in log.columns:
                 if (datetime.now() - parse(log.loc[sta_id, 'daily'])).days < 1:
@@ -385,9 +385,9 @@ def thread_pack (sta_id,stn_type,y):
         #log.csv可能是空白的檔案，或是已經有部分資料
         print ("Updating log.csv")
         if os.path.exists("log.csv"):
-            log = pd.read_csv("log.csv")
+            log = pd.read_csv("log.csv", index_col='sta_id')
         else:
-            log = pd.DataFrame(columns=['sta_id', 'daily', 'hourly', 'monthly'])
+            log = pd.DataFrame(columns=['sta_id', 'daily', 'hourly', 'monthly'], index = 'sta_id')
         log.loc[sta_id, 'daily'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         log.to_csv("log.csv")
     return output_df
