@@ -383,7 +383,7 @@ def thread_pack (sta_id,stn_type,y):
     if os.path.exists("log.csv"):
         log = pd.read_csv("log.csv", index_col=0)
     else:
-        log = pd.DataFrame()
+        log = pd.DataFrame(columns=['daily', 'hourly', 'monthly'])
     log.loc[sta_id, 'monthly'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     log.to_csv("log.csv")
     output_df.to_csv("data/{}/{}_{}_monthly.csv".format(sta_id, sta_id, y))
