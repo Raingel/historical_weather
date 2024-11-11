@@ -329,9 +329,11 @@ def thread_pack (sta_id,stn_type,y):
     #log.csv可能是空白的檔案，或是已經有部分資料
     print ("Updating log.csv")
     if os.path.exists("log.csv"):
-        log = pd.read_csv("log.csv", index_col='sta_id')
+        log = pd.read_csv("log.csv", index_col = 'sta_id')
     else:
-        log = pd.DataFrame(columns=['sta_id', 'daily', 'hourly', 'monthly'], index = 'sta_id')
+        log = pd.DataFrame(columns=['sta_id', 'daily', 'hourly', 'monthly'])
+        #Set sta_id as index
+        log.set_index('sta_id', inplace=True)
     log.loc[sta_id, 'hourly'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     log.to_csv("log.csv")
     output_df.to_csv(filename.format(sta_id, sta_id, y))
