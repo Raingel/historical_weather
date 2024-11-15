@@ -359,7 +359,13 @@ nagr = NAGR()
 
 stations_df.reset_index(inplace=True, drop=True)
 stations_df[-10:]
-
+# %%
+from filelock import FileLock
+import os
+def safe_write_to_csv(log, filename="log.csv"):
+    lock_file = f"{filename}.lock"
+    with FileLock(lock_file):
+        log.to_csv(filename)
 def thread_pack (sta_id,stn_type,y):
     filename = "data/{}/{}_{}_daily.csv".format(sta_id, sta_id, y)
     if os.path.exists("log.csv"):
@@ -378,9 +384,6 @@ def thread_pack (sta_id,stn_type,y):
         output_df = nagr.getDataByCsvAPI(STA = sta_id, start_time= f"{y}-01-01", end_time=f"{y+1}-01-01", type='daily', save_path = filename)
     else:
         output_df = codis.get_full_year(sta_id=sta_id, stn_type=stn_type, year = y)
-        if not output_df.empty:
-            output_df.to_csv(filename)
-            print ("Saved to {}".format(filename))
     if output_df.empty:
         return pd.DataFrame()
     else:
@@ -394,7 +397,8 @@ def thread_pack (sta_id,stn_type,y):
             #Set sta_id as index
             log.set_index('sta_id', inplace=True)
         log.loc[sta_id, 'daily'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        log.to_csv("log.csv")
+        safe_write_to_csv(log, "log.csv")
+        output_df.to_csv(filename.format(sta_id, sta_id, y))
     return output_df
 # %%
 import threading

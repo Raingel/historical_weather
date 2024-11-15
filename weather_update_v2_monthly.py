@@ -360,8 +360,14 @@ stations_df = stations_df[(stations_df['stationEndDate'] == "")]
 nagr = NAGR()
 
 # %%
+from filelock import FileLock
+import os
+def safe_write_to_csv(log, filename="log.csv"):
+    lock_file = f"{filename}.lock"
+    with FileLock(lock_file):
+        log.to_csv(filename)
 def thread_pack (sta_id,stn_type,y):
-    filename = "data/{}/{}_{}.csv".format(sta_id, sta_id, y)
+    filename = "data/{}/{}_{}_monthly.csv".format(sta_id, sta_id, y)
     if os.path.exists("log.csv"):
         log = pd.read_csv("log.csv", index_col = 'sta_id')
         if sta_id in log.index:
@@ -390,8 +396,8 @@ def thread_pack (sta_id,stn_type,y):
         #Set sta_id as index
         log.set_index('sta_id', inplace=True)
     log.loc[sta_id, 'monthly'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    log.to_csv("log.csv")
-    output_df.to_csv("data/{}/{}_{}_monthly.csv".format(sta_id, sta_id, y))
+    safe_write_to_csv(log, "log.csv")
+    output_df.to_csv(filename.format(sta_id, sta_id, y))
     return output_df
 
 # %%
