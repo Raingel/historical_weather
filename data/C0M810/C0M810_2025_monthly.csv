@@ -1,0 +1,3 @@
+,StnPres,StnPresMax,StnPresMaxTime,StnPresMin,StnPresMinTime,Tx,TxMaxAbs,TxMaxAbsTime,TxMinAbs,TxMinAbsTime,RH,RHMin,RHMinTime,WS,WD,WSGust,WDGust,WGustTime,Precp,SunShine,GloblRad,TxSoil0cm,TxSoil5cm,TxSoil10cm,TxSoil20cm,TxSoil50cm,TxSoil100cm
+2025-01-01,868.0,870.3,2025-01-05T09:32:00,866.0,2025-01-02T15:35:00,13.2,16.8,2025-01-04T14:50:00,8.3,2025-01-04T04:39:00,90.0,46.0,2025-01-05T10:02:00,0.5,205.0,4.8,276.0,2025-01-03T12:03:00,14.0,-99.8,42.8,14.8,15.2,14.7,14.8,15.5,16.8
+2025-12-01,-99.8,-99.8,-99.8,-99.8,-99.8,-99.8,-99.8,-99.8,-99.8,-99.8,-99.8,-99.8,-99.8,-99.8,-99.8,-99.8,-99.8,-99.8,-99.8,-99.8,-99.8,-99.8,-99.8,-99.8,-99.8,-99.8,-99.8
