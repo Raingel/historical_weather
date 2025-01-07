@@ -372,8 +372,9 @@ def thread_pack (sta_id,stn_type,y):
         log = pd.read_csv("log.csv", index_col='sta_id')
         if sta_id in log.index:
             if 'daily' in log.columns:
+                AVOID_RE_UPDATE = False
                 try:
-                    if pd.to_datetime(log.loc[sta_id, 'daily']) > datetime.now() - pd.Timedelta(days=1):
+                    if pd.to_datetime(log.loc[sta_id, 'daily']) > datetime.now() - pd.Timedelta(days=1) and AVOID_RE_UPDATE:
                         print("File {} was updated in the last 24 hours. Skipping...".format(filename))
                         return pd.DataFrame()
                 except:
