@@ -1,2 +1,2 @@
 ,StnPres,SeaPres,StnPresMax,StnPresMaxTime,StnPresMin,StnPresMinTime,Tx,TxMaxAbs,TxMaxAbsTime,TxMinAbs,TxMinAbsTime,Td,WS,WD,WSGust,WDGust,WGustTime,Precp,PrecpDay,PrecpMax10,PrecpMax10Time,PrecpHrMax,PrecpHrMaxTime,Precp1DayMax,Precp1DayMaxTime,RH
-2026-01-01,,1017.7,,,,,,,,,,,,10.0,,,,,0,0.0,2026-01-01 00:00:00,0.0,2026-01-01 00:00:00,0.0,2026-01-01 00:00:00,
+2026-01-01,1000.2,1017.7,,,,,14.7,,,,,14.0,2.1,10.0,,,,0.0,0,0.0,2026-01-02 00:00:00,0.0,2026-01-02 00:00:00,0.0,2026-01-02 00:00:00,95
