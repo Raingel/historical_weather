@@ -2,3 +2,5 @@
 *.py
 *.bat
 *.php
+
+!tools/data_quality/duplicate_hourly_report.py
