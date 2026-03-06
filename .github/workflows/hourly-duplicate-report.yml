@@ -1,0 +1,35 @@
+name: Hourly Duplicate Report
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 1 * * 1'
+
+jobs:
+  scan-hourly-duplicates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate report
+        run: python -u tools/data_quality/duplicate_hourly_report.py
+
+      - name: Upload report artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: hourly-duplicate-report
+          path: |
+            reports/data_quality/duplicate_report.md
+            reports/data_quality/duplicate_identical.csv
+            reports/data_quality/duplicate_conflicting.csv
