@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
-"""Generate a duplicate-hour report for hourly weather station files."""
+"""Generate a duplicate-hour report for hourly weather station files.
+
+This implementation processes each file independently to keep memory usage stable
+on GitHub-hosted runners.
+"""
 
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -38,6 +43,12 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Optional limit of files for quick dry runs.",
     )
+    parser.add_argument(
+        "--progress-every",
+        type=int,
+        default=500,
+        help="Log progress every N scanned files.",
+    )
     return parser.parse_args()
 
 
@@ -54,19 +65,17 @@ def iter_station_csv_files(data_dir: Path) -> Iterable[Path]:
 def normalize_values(df: pd.DataFrame, value_columns: list[str]) -> pd.Series:
     if not value_columns:
         return pd.Series([""] * len(df), index=df.index)
-    normalized = (
-        df[value_columns]
-        .replace({pd.NA: "", float("nan"): ""})
-        .fillna("")
-        .astype(str)
-        .apply(lambda col: col.str.strip())
-    )
-    return normalized.apply(lambda row: "|".join(row.values.tolist()), axis=1)
+
+    # Build a stable row signature without expensive row-wise Python joins.
+    normalized = df[value_columns].fillna("").astype(str)
+    normalized = normalized.apply(lambda col: col.str.strip())
+    return pd.util.hash_pandas_object(normalized, index=False).astype(str)
 
 
-def load_hourly_data(csv_path: Path) -> tuple[pd.DataFrame, FileStats]:
+def analyze_file(csv_path: Path) -> tuple[FileStats, list[dict], list[dict]]:
     df = pd.read_csv(csv_path, encoding="utf-8-sig")
     timestamp_col = df.columns[0]
+
     df[timestamp_col] = pd.to_datetime(df[timestamp_col], errors="coerce")
     valid = df[df[timestamp_col].notna()].copy()
 
@@ -78,53 +87,65 @@ def load_hourly_data(csv_path: Path) -> tuple[pd.DataFrame, FileStats]:
     )
 
     if valid.empty:
-        return valid, stats
+        return stats, [], []
 
-    # Keep hourly data only.
+    # Keep hourly records only.
     valid = valid[valid[timestamp_col].dt.floor("h") == valid[timestamp_col]].copy()
-    valid["timestamp"] = valid[timestamp_col]
-    valid["date"] = valid["timestamp"].dt.date
-    value_columns = [col for col in valid.columns if col not in {timestamp_col, "timestamp", "date"}]
+    if valid.empty:
+        return stats, [], []
+
+    value_columns = [col for col in valid.columns if col != timestamp_col]
     valid["value_signature"] = normalize_values(valid, value_columns)
-    valid["station"] = csv_path.parent.name
-    valid["source_file"] = csv_path.as_posix()
-    return valid[["station", "date", "timestamp", "value_signature", "source_file"]], stats
 
-
-def build_report_rows(all_hourly: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-    if all_hourly.empty:
-        base_cols = ["station", "date", "timestamp", "duplicate_rows", "source_file"]
-        return pd.DataFrame(columns=base_cols), pd.DataFrame(columns=base_cols)
+    dup_rows = valid[valid.duplicated(subset=[timestamp_col], keep=False)]
+    if dup_rows.empty:
+        return stats, [], []
 
     grouped = (
-        all_hourly.groupby(["station", "date", "timestamp", "source_file"], as_index=False)
+        dup_rows.groupby(timestamp_col, as_index=False)
         .agg(duplicate_rows=("value_signature", "size"), unique_signatures=("value_signature", "nunique"))
     )
-    duplicate_only = grouped[grouped["duplicate_rows"] > 1].copy()
 
-    identical = duplicate_only[duplicate_only["unique_signatures"] == 1].copy()
-    conflicting = duplicate_only[duplicate_only["unique_signatures"] > 1].copy()
+    base = {
+        "station": csv_path.parent.name,
+        "source_file": csv_path.as_posix(),
+    }
 
-    for frame in (identical, conflicting):
-        frame["timestamp"] = frame["timestamp"].dt.strftime("%Y-%m-%d %H:%M:%S")
-        frame["date"] = frame["date"].astype(str)
+    identical_rows: list[dict] = []
+    conflicting_rows: list[dict] = []
 
-    keep_cols = ["station", "date", "timestamp", "duplicate_rows", "source_file"]
-    return identical[keep_cols], conflicting[keep_cols]
+    for _, row in grouped.iterrows():
+        record = {
+            **base,
+            "date": row[timestamp_col].strftime("%Y-%m-%d"),
+            "timestamp": row[timestamp_col].strftime("%Y-%m-%d %H:%M:%S"),
+            "duplicate_rows": int(row["duplicate_rows"]),
+        }
+        if int(row["unique_signatures"]) == 1:
+            identical_rows.append(record)
+        else:
+            conflicting_rows.append(record)
+
+    return stats, identical_rows, conflicting_rows
+
+
+def write_csv(path: Path, rows: list[dict]) -> None:
+    columns = ["station", "date", "timestamp", "duplicate_rows", "source_file"]
+    df = pd.DataFrame(rows, columns=columns)
+    df.to_csv(path, index=False, encoding="utf-8")
 
 
 def write_markdown_summary(
     out_path: Path,
     scanned_files: int,
     file_stats: list[FileStats],
-    identical: pd.DataFrame,
-    conflicting: pd.DataFrame,
+    station_identical: Counter,
+    station_conflicting: Counter,
+    identical_count: int,
+    conflicting_count: int,
 ) -> None:
     total_rows = sum(s.rows for s in file_stats)
     valid_rows = sum(s.valid_timestamp_rows for s in file_stats)
-
-    station_identical = identical.groupby("station").size().sort_values(ascending=False)
-    station_conflicting = conflicting.groupby("station").size().sort_values(ascending=False)
 
     lines = [
         "# Hourly Duplicate Timestamp Report",
@@ -133,25 +154,25 @@ def write_markdown_summary(
         f"- Scanned files: {scanned_files}",
         f"- Total rows read: {total_rows}",
         f"- Rows with parseable timestamps: {valid_rows}",
-        f"- Duplicate groups with identical values: {len(identical)}",
-        f"- Duplicate groups with conflicting values: {len(conflicting)}",
+        f"- Duplicate groups with identical values: {identical_count}",
+        f"- Duplicate groups with conflicting values: {conflicting_count}",
         "",
         "## Duplicate groups (identical values)",
     ]
 
-    if station_identical.empty:
+    if not station_identical:
         lines.append("- No identical-value duplicate groups found.")
     else:
         lines.append("- Top stations by identical-value duplicate group count:")
-        for station, count in station_identical.head(20).items():
+        for station, count in station_identical.most_common(20):
             lines.append(f"  - {station}: {count}")
 
     lines += ["", "## Duplicate groups (conflicting values)"]
-    if station_conflicting.empty:
+    if not station_conflicting:
         lines.append("- No conflicting-value duplicate groups found.")
     else:
         lines.append("- Top stations by conflicting duplicate group count:")
-        for station, count in station_conflicting.head(20).items():
+        for station, count in station_conflicting.most_common(20):
             lines.append(f"  - {station}: {count}")
 
     lines += [
@@ -175,31 +196,49 @@ def main() -> None:
         files = files[: args.max_files]
 
     file_stats: list[FileStats] = []
-    hourly_frames: list[pd.DataFrame] = []
+    identical_rows: list[dict] = []
+    conflicting_rows: list[dict] = []
+    station_identical: Counter = Counter()
+    station_conflicting: Counter = Counter()
 
-    for csv_path in files:
+    for i, csv_path in enumerate(files, start=1):
         try:
-            hourly_df, stats = load_hourly_data(csv_path)
+            stats, file_identical, file_conflicting = analyze_file(csv_path)
             file_stats.append(stats)
-            if not hourly_df.empty:
-                hourly_frames.append(hourly_df)
+            identical_rows.extend(file_identical)
+            conflicting_rows.extend(file_conflicting)
+            if file_identical:
+                station_identical[stats.station] += len(file_identical)
+            if file_conflicting:
+                station_conflicting[stats.station] += len(file_conflicting)
         except Exception as exc:  # pragma: no cover - defensive logging for data irregularities.
             print(f"[WARN] failed to parse {csv_path}: {exc}")
 
-    all_hourly = pd.concat(hourly_frames, ignore_index=True) if hourly_frames else pd.DataFrame()
-    identical, conflicting = build_report_rows(all_hourly)
+        if args.progress_every > 0 and i % args.progress_every == 0:
+            print(
+                f"[INFO] processed {i}/{len(files)} files | "
+                f"identical={len(identical_rows)} conflicting={len(conflicting_rows)}"
+            )
 
     identical_path = output_dir / "duplicate_identical.csv"
     conflicting_path = output_dir / "duplicate_conflicting.csv"
     markdown_path = output_dir / "duplicate_report.md"
 
-    identical.to_csv(identical_path, index=False, encoding="utf-8")
-    conflicting.to_csv(conflicting_path, index=False, encoding="utf-8")
-    write_markdown_summary(markdown_path, len(files), file_stats, identical, conflicting)
+    write_csv(identical_path, identical_rows)
+    write_csv(conflicting_path, conflicting_rows)
+    write_markdown_summary(
+        out_path=markdown_path,
+        scanned_files=len(files),
+        file_stats=file_stats,
+        station_identical=station_identical,
+        station_conflicting=station_conflicting,
+        identical_count=len(identical_rows),
+        conflicting_count=len(conflicting_rows),
+    )
 
     print(f"[INFO] wrote {markdown_path}")
-    print(f"[INFO] wrote {identical_path} ({len(identical)} rows)")
-    print(f"[INFO] wrote {conflicting_path} ({len(conflicting)} rows)")
+    print(f"[INFO] wrote {identical_path} ({len(identical_rows)} rows)")
+    print(f"[INFO] wrote {conflicting_path} ({len(conflicting_rows)} rows)")
 
 
 if __name__ == "__main__":
