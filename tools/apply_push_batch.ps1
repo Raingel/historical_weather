@@ -11,6 +11,7 @@
 )
 
 $ErrorActionPreference = 'Stop'
+$PSNativeCommandUseErrorActionPreference = $false
 
 function Ensure-Dir {
     param([string]$Path)
@@ -127,3 +128,5 @@ if ($Push) {
 else {
     Write-Output ('Committed batch ' + $batch.id + ' logs=' + $logRoot)
 }
+
+
