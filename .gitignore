@@ -1,6 +1,26 @@
-*.ipynb
+﻿*.ipynb
 *.py
 *.bat
 *.php
+__pycache__/
+*.pyc
+reports/
 
-!tools/data_quality/duplicate_hourly_report.py
+# Keep tracked and new tooling scripts versioned.
+!tools/
+!tools/*.py
+!tools/*.ps1
+!tools/data_quality/
+!tools/data_quality/*.py
+
+# Temporary local test outputs created during rebuild/update verification.
+data_codis_rebuild_full_testupdate/
+data_codis_rebuild_full_testupdate2/
+data_codis_legacy_compatible_testupdate/
+data_codis_legacy_compatible_testupdate2/
+data_testupdate_mirror/
+reports/codis_daily_update_test/
+reports/codis_daily_update_test2/
+reports/codis_full_rebuild_notebook/data_vs_compat_audit.json
+reports/codis_full_rebuild_notebook/data_vs_compat_inventory_after_sync.json
+reports/codis_full_rebuild_notebook/old_only_hourly_duplicate_check.json
