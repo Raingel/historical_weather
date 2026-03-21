@@ -11,7 +11,6 @@
 )
 
 $ErrorActionPreference = 'Stop'
-$PSNativeCommandUseErrorActionPreference = $false
 
 function Ensure-Dir {
     param([string]$Path)
@@ -36,17 +35,24 @@ function Invoke-Git {
         }
     }
 
+    $stdoutPath = [System.IO.Path]::GetTempFileName()
+    $stderrPath = [System.IO.Path]::GetTempFileName()
+
     try {
-        $output = & $GitExe @Args 2>&1
-        if ($LogFile) {
-            $output | Out-File -FilePath $LogFile -Append -Encoding utf8
+        $proc = Start-Process -FilePath $GitExe -ArgumentList $Args -Wait -NoNewWindow -PassThru -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
+        $stdout = if (Test-Path $stdoutPath) { Get-Content $stdoutPath } else { @() }
+        $stderr = if (Test-Path $stderrPath) { Get-Content $stderrPath } else { @() }
+        $allOutput = @($stdout) + @($stderr)
+        if ($LogFile -and $allOutput.Count -gt 0) {
+            $allOutput | Out-File -FilePath $LogFile -Append -Encoding utf8
         }
-        if ($LASTEXITCODE -ne 0) {
-            throw "git $($Args -join ' ') failed with exit code $LASTEXITCODE"
+        if ($proc.ExitCode -ne 0) {
+            throw "git $($Args -join ' ') failed with exit code $($proc.ExitCode)"
         }
-        return $output
+        return $allOutput
     }
     finally {
+        Remove-Item $stdoutPath, $stderrPath -ErrorAction SilentlyContinue
         if ($EnvironmentVariables) {
             foreach ($key in $EnvironmentVariables.Keys) {
                 [Environment]::SetEnvironmentVariable($key, $saved[$key], 'Process')
@@ -128,5 +134,3 @@ if ($Push) {
 else {
     Write-Output ('Committed batch ' + $batch.id + ' logs=' + $logRoot)
 }
-
-
