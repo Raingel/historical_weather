@@ -19,6 +19,17 @@ function Ensure-Dir {
     }
 }
 
+function Format-GitArgument {
+    param([string]$Value)
+    if ($null -eq $Value) {
+        return '""'
+    }
+    if ($Value -match '[\s"]') {
+        return '"' + ($Value -replace '"', '\"') + '"'
+    }
+    return $Value
+}
+
 function Invoke-Git {
     param(
         [Parameter(Mandatory = $true)]
@@ -39,7 +50,8 @@ function Invoke-Git {
     $stderrPath = [System.IO.Path]::GetTempFileName()
 
     try {
-        $proc = Start-Process -FilePath $GitExe -ArgumentList $Args -Wait -NoNewWindow -PassThru -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
+        $argLine = ($Args | ForEach-Object { Format-GitArgument $_ }) -join ' '
+        $proc = Start-Process -FilePath $GitExe -ArgumentList $argLine -Wait -NoNewWindow -PassThru -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
         $stdout = if (Test-Path $stdoutPath) { Get-Content $stdoutPath } else { @() }
         $stderr = if (Test-Path $stderrPath) { Get-Content $stderrPath } else { @() }
         $allOutput = @($stdout) + @($stderr)
