@@ -1,9 +1,16 @@
-name: CODIS Daily Update
+﻿name: CODIS Daily Update
 
 on:
   workflow_dispatch:
   schedule:
     - cron: '0 5 * * *'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: codis-daily-update-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   codis-daily-update:
@@ -13,6 +20,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -38,4 +48,4 @@ jobs:
         uses: ad-m/github-push-action@master
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          branch: main
+          branch: ${{ github.ref_name }}

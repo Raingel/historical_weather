@@ -1,304 +1,320 @@
-# Taiwan Historical Weather Database
+﻿# Taiwan Historical Weather Database / 台灣歷史氣象資料庫
 
-Taiwan historical weather observations collected from official station datasets.
+Taiwan historical weather observations rebuilt from official CWA/CODIS station data, with a legacy-compatible CSV interface for downstream users.
 
-This repository now contains both:
-- a raw CODIS rebuild generated from the official CWA StationData system
-- a legacy-compatible dataset that preserves the old CSV interface for downstream users
+本資料庫收錄台灣歷史氣象測站資料，並已用中央氣象署 CWA CODIS 官方資料重新建庫，同時保留舊版 CSV 介面，讓既有下游程式可以持續使用。
 
-## Which folder should I use?
+## Project Status / 專案目前狀態
 
-Use one of the following folders depending on your purpose:
+This repository now provides three related dataset layers:
+
+本 repository 目前提供三層資料：
 
 - `data`
-  - The previous online dataset kept for reference and backward comparison.
-- `data_codis_rebuild_full`
-  - The new raw rebuild from official CODIS data.
-  - Best if you want the most official/raw representation.
-  - Column names are not legacy-compatible.
+  - Production-ready dataset for downstream users.
+  - Legacy-compatible and intended to replace the historical online dataset.
+  - 正式提供給下游程式使用的資料夾。
+  - 已做舊版欄位相容，設計上就是要取代原本線上使用的資料。
 - `data_codis_legacy_compatible`
-  - The recommended folder for most users.
-  - Built from the new CODIS rebuild, but old columns are preserved at the front with the same names/order as before.
-  - Extra official CODIS columns are appended after the legacy columns.
+  - Explicit legacy-compatible rebuild derived from the new CODIS raw dataset.
+  - Old columns are preserved first, and extra CODIS columns are appended after them.
+  - 由新版 CODIS 原始資料轉出的相容版資料。
+  - 舊欄位固定排在前面，新的官方欄位接在後面。
+- `data_codis_rebuild_full`
+  - Raw rebuild from official CODIS downloads.
+  - Best for users who want the most direct official representation.
+  - 官方 CODIS 原始重建資料。
+  - 適合需要最貼近官方欄位與原始結構的使用者。
 
-If you have existing code that reads the old `data` folder, you should migrate to `data_codis_legacy_compatible` first.
+For most users, `data` is the correct folder to use.
 
-## Data sources
+對大多數使用者來說，直接使用 `data` 就是正確選擇。
 
-The rebuilt dataset is based on official CWA CODIS StationData downloads:
+## Data Sources / 資料來源
+
+Official primary source / 主要官方來源：
+
 - CODIS StationData: <https://codis.cwa.gov.tw/StationData>
 - CODIS station list API: <https://codis.cwa.gov.tw/api/station_list>
 
-Station metadata reference used during rebuild:
+Station metadata reference / 測站中繼資料參考：
+
 - <https://github.com/Raingel/weather_station_list>
 
-Historically, this repository also included data collected from earlier CWA / agrometeorological sources. The new rebuild unifies the main data source through CODIS whenever possible.
+The rebuilt database now prefers a unified CODIS-based pipeline whenever possible.
 
-## 2026 rebuild update
+新版資料庫已盡量統一改用 CODIS 作為主要下載來源，以減少不同來源混用造成的差異。
 
-### Why the rebuild was done
+## 2026 Rebuild Update / 2026 年重建更新
 
-Two major issues were reported in the older dataset:
-- some wind direction values were questioned because of `.5` decimal values
-- duplicate rows were found in some hourly files, especially around `00:00`
+### Why the rebuild was done / 為什麼要重建
 
-The new rebuild was done to:
-- re-download station data from official CODIS
-- reduce source inconsistency across station types
+Two issues were reported in the older database:
+
+舊版資料庫先前有兩類問題被回報：
+
+- Some wind direction values were questioned because decimal values such as `.5` appeared.
+- Some hourly files contained duplicate timestamps, especially around `00:00`.
+- 有些風向資料出現 `.5` 的數值，使用者質疑與原始資料不符。
+- 有些時資料出現重複 timestamp，尤其集中在 `00:00` 左右。
+
+The rebuild therefore aimed to:
+
+所以這次重建的目標是：
+
+- re-download observations from official CODIS
+- unify the main upstream source
 - remove duplicate timestamps in rebuilt files
-- keep a legacy-compatible dataset for downstream scripts
+- preserve backward compatibility for existing downstream code
+- 重新自官方 CODIS 下載資料
+- 盡量統一主要上游來源
+- 去除重建資料中的重複 timestamp
+- 保留對既有下游程式的相容性
 
-### What changed
+### What changed / 這次更新換了什麼
 
-The repository now has a two-layer update flow:
+The new pipeline now works in two stages:
+
+新的建庫流程分成兩段：
 
 1. `tools/rebuild_codis_database.py`
-   - downloads raw station/year CSVs from official CODIS
-   - output: `data_codis_rebuild_full`
-
+   - downloads and rebuilds raw CODIS station/year files
+   - 下載並重建 CODIS 原始測站逐年資料
 2. `tools/build_legacy_compatible_dataset.py`
-   - converts the raw CODIS rebuild into a legacy-compatible superset
-   - output: `data_codis_legacy_compatible`
+   - converts raw CODIS output into a legacy-compatible superset
+   - 將原始 CODIS 重建結果轉成舊版相容的 superset 資料
 
-### What stayed mostly the same
+A daily updater was also added:
 
-For the overlapping core weather variables, the rebuilt dataset is intended to stay very close to the old dataset.
+另外也新增了每日更新流程：
 
-Core examples include:
-- `StnPres`
-- `SeaPres`
-- `Tx`
-- `Td`
-- `RH`
-- `WS`
-- `WD`
-- `WSGust`
-- `WDGust`
-- `Precp`
+- `tools/run_daily_codis_update.py`
+- `.github/workflows/codis_daily_update.yml`
 
-In spot checks and rebuild verification, these core values were mostly consistent with the old database.
+## Compatibility Policy / 相容性策略
 
-Intentional differences remain in a few areas:
-- duplicate timestamps were removed from rebuilt files
-- some old files contained cross-year carry-over rows that were not kept in the raw CODIS rebuild
-- official CODIS formatting may keep values such as wind direction decimals when that is how CODIS represents them
-- some legacy-only columns that do not exist in CODIS were carried forward from the old dataset only for compatibility
+The final user-facing dataset follows this rule:
 
-## Compatibility policy
+最後對外提供的相容資料遵循以下原則：
 
-The final usable dataset in `data_codis_legacy_compatible` follows this rule:
+- old columns always stay first
+- old column names stay exactly the same
+- extra CODIS columns are appended after old columns
+- if an old field can be derived from CODIS, it is rebuilt from CODIS
+- if an old-only field has no CODIS source, the old value is retained only for compatibility
+- if a file exists only in the old dataset, it is copied forward so downstream users do not suddenly lose files
+- 舊欄位一定排在前面
+- 舊欄位名稱完全不改
+- 新的 CODIS 欄位接在舊欄位後面
+- 舊欄位若能由 CODIS 推回，就用 CODIS 重建
+- 舊欄位若沒有 CODIS 對應來源，才以舊值補回相容層
+- 若某檔只存在舊資料庫，會保留下來，避免下游程式突然找不到檔案
 
-- old columns are kept first
-- old column names are kept exactly the same
-- extra CODIS columns are appended after the old columns
-- if an old column can be derived from CODIS raw columns, it is rebuilt from CODIS
-- if an old column has no CODIS source, the old value is retained only for compatibility
-- if a file exists only in the old dataset and not in the raw CODIS rebuild, the old file is copied forward so downstream users do not suddenly lose files
+This means `data` and `data_codis_legacy_compatible` are compatibility layers built from the new CODIS rebuild, not plain raw dumps.
 
-This means `data_codis_legacy_compatible` is a compatibility layer, not a pure raw CODIS dump.
+所以 `data` 與 `data_codis_legacy_compatible` 都是建構在新版 CODIS 重建資料上的相容層，不是單純的 raw dump。
 
-## Quality control summary
+## Quality Control Summary / 品質檢查摘要
 
-### Raw CODIS rebuild
+### Raw CODIS rebuild / 原始 CODIS 重建
 
 Key checks on `data_codis_rebuild_full`:
-- rebuilt station directories: `1214`
-- rebuilt raw files: `58292`
-- duplicate timestamp files found: `0`
-- new-only station directories compared with old dataset: `53`
-- old-only station directories compared with raw rebuild: `9`
 
-### Legacy-compatible dataset
+- station directories / 測站資料夾：`1214`
+- raw files / 原始檔案數：`58292`
+- files with duplicate timestamps / 有重複 timestamp 的檔案：`0`
+- new-only station directories vs old dataset / 相較舊庫新增站數：`53`
+- old-only station directories vs raw rebuild / 舊庫獨有站數：`9`
+
+### Legacy-compatible output / 相容版輸出
 
 Key checks on `data_codis_legacy_compatible`:
-- output files: `62064`
-- output file count exactly matches `(old dataset union raw CODIS rebuild)`
-- missing output files after compatibility build: `0`
-- extra unexpected output files: `0`
-- old files whose leading columns exactly match legacy headers: `61053`
-- legacy prefix mismatches: `0`
-- raw-only files passed through as-is: `1011`
-- old-only files copied forward for compatibility: `3772`
 
-Compatibility rebuild statistics:
-- cells derived from CODIS raw columns into old legacy columns: `132225`
-- legacy-only cells filled from old data because CODIS had no source column: `3243514`
+- output files / 輸出檔數：`62064`
+- missing output files / 缺漏輸出檔：`0`
+- legacy header prefix mismatches / 舊欄位前綴不相符檔案：`0`
+- raw-only passthrough files / 新版獨有直接保留檔：`1011`
+- old-only copied files / 舊版獨有保留檔：`3772`
 
-QC reports are stored here:
+Compatibility rebuild statistics / 相容層統計：
+
+- legacy cells rebuilt from CODIS / 由 CODIS 推回舊欄位的儲存格：`132225`
+- legacy-only cells copied from old data / 因 CODIS 無來源而沿用舊值的儲存格：`3243514`
+
+QC report files / QC 報告位置：
+
 - `reports/codis_full_rebuild_notebook/post_rebuild_audit.json`
 - `reports/codis_full_rebuild_notebook/legacy_compat_report.json`
 - `reports/codis_full_rebuild_notebook/legacy_compat_audit.json`
 
-## Data layout
+## Data Layout / 資料結構
 
-All datasets are organized as:
+All datasets use the same layout:
 
-- first folder level: station ID
-- file name: station-year CSV
+所有資料夾都使用相同結構：
 
-Examples:
-- `data_codis_legacy_compatible/466920/466920_1996.csv`
-- `data_codis_legacy_compatible/466920/466920_1996_daily.csv`
-- `data_codis_legacy_compatible/466920/466920_1996_monthly.csv`
+- first folder level = station ID / 第一層資料夾 = 站號
+- file name = station-year CSV / 檔名 = 站號加年份 CSV
 
-Naming rules:
+Examples / 例子：
+
+- `data/466920/466920_1996.csv`
+- `data/466920/466920_1996_daily.csv`
+- `data/466920/466920_1996_monthly.csv`
+
+Naming rules / 命名規則：
+
 - hourly: `{station_id}_{year}.csv`
 - daily: `{station_id}_{year}_daily.csv`
 - monthly: `{station_id}_{year}_monthly.csv`
 
-## Column guide
+## Column Guide / 欄位說明
 
-### General notes
+### General notes / 一般說明
 
-There are two kinds of columns in the final compatibility dataset:
+There are two kinds of columns in the compatibility datasets:
 
-1. Legacy columns
-- these are the old columns used by downstream scripts
-- they always appear first
-- names are preserved exactly
+相容資料裡的欄位可以分成兩類：
 
-2. Extra CODIS columns
-- these are official/raw CODIS fields kept after the legacy columns
-- examples: `Precipitation.HourlyMaximum`, `RelativeHumidity.Maximum`, `WindDirection.CountForCode00`, `WindSpeed.TotalForCode00`
-- these fields are useful for advanced users but are not required by older scripts
+1. Legacy columns / 舊版相容欄位
+- These are the columns used by downstream scripts.
+- They always appear first.
+- 這些是舊下游程式會直接使用的欄位。
+- 它們一定排在最前面。
 
-### Time column
+2. Extra CODIS columns / 額外 CODIS 官方欄位
+- These are official/raw CODIS fields appended after the legacy columns.
+- Older scripts can ignore them.
+- 這些是附加在舊欄位後面的 CODIS 官方欄位。
+- 舊程式通常可以直接忽略。
 
-In the old dataset, the first column header was often blank.
-In the compatibility dataset this behavior is preserved where the old file existed.
+### Time column / 時間欄位
 
-So for legacy-compatible files:
-- the first column may appear as an empty header
-- that first column is the timestamp/date/month key
+- In old files, the first column header was often blank.
+- In compatibility output, that legacy interface is preserved when an old counterpart exists.
+- 舊檔第一欄欄名常常是空白。
+- 在相容版裡，如果有舊檔對應，這種介面會盡量保留。
 
-For raw-only new files without an old counterpart:
-- the first column is `timestamp`
+### Common hourly legacy columns / 常見時資料舊欄位
 
-### Hourly legacy columns
+- `StnPres`: station pressure / 測站氣壓
+- `SeaPres`: sea level pressure / 海平面氣壓
+- `Tx`: air temperature / 氣溫
+- `Td`: dew point temperature / 露點溫度
+- `RH`: relative humidity / 相對濕度
+- `WS`: mean wind speed / 平均風速
+- `WD`: mean wind direction / 平均風向
+- `WSGust`: maximum gust speed / 最大陣風風速
+- `WDGust`: gust direction / 最大陣風風向
+- `Precp`: precipitation accumulation / 累積降水量
+- `PrecpHour`: precipitation duration or hourly summary / 降水時數或相關摘要
+- `SunShine`: sunshine duration / 日照時數
+- `GloblRad`: global radiation / 全天空日射量
+- `EvapA`: Class A pan evaporation / A 盆蒸發量
+- `Visb`: visibility / 能見度
+- `UVI`: UV index / 紫外線指數
+- `CloudAmount`: cloud amount / 雲量
+- `TxSoil0cm` to `TxSoil200cm`: soil temperature at different depths / 不同深度土壤溫度
 
-Common hourly legacy columns:
+### Common daily legacy columns / 常見日資料舊欄位
 
-- first column: timestamp (`YYYY-MM-DD HH:MM:SS`)
-- `StnPres`: station pressure
-- `SeaPres`: sea level pressure
-- `Tx`: air temperature
-- `Td`: dew point temperature
-- `RH`: relative humidity
-- `WS`: mean wind speed
-- `WD`: mean wind direction
-- `WSGust`: peak gust speed
-- `WDGust`: peak gust direction
-- `Precp`: precipitation accumulation
-- `PrecpHour`: precipitation duration / precipitation hour summary when available
-- `SunShine`: sunshine duration
-- `GloblRad`: global solar radiation accumulation
-- `EvapA`: Class A pan evaporation if available in the old dataset
-- `Visb`: visibility if available
-- `UVI`: UV index accumulation if available
-- `CloudAmount`: cloud amount if available
-- `TxSoil0cm`, `TxSoil5cm`, `TxSoil10cm`, `TxSoil20cm`, `TxSoil30cm`, `TxSoil50cm`, `TxSoil100cm`, `TxSoil200cm`: soil temperatures at each depth when available
-- `H_VMC010` to `H_VMC120`: legacy hourly station-specific VMC fields in some files
+- `StnPres`, `SeaPres`: mean pressure / 平均氣壓
+- `StnPresMax`, `StnPresMaxTime`: daily maximum station pressure and time / 日最大測站氣壓及時間
+- `StnPresMin`, `StnPresMinTime`: daily minimum station pressure and time / 日最小測站氣壓及時間
+- `Tx`: mean temperature / 平均氣溫
+- `TxMaxAbs`, `TxMaxAbsTime`: absolute maximum temperature and time / 絕對最高溫及時間
+- `TxMinAbs`, `TxMinAbsTime`: absolute minimum temperature and time / 絕對最低溫及時間
+- `TxRange`: temperature range / 溫度日較差
+- `Td`: mean dew point / 平均露點溫度
+- `RH`: mean relative humidity / 平均相對濕度
+- `RHMin`, `RHMinTime`: minimum relative humidity and time / 最低相對濕度及時間
+- `WS`, `WD`: mean wind speed and direction / 平均風速與風向
+- `WSGust`, `WDGust`, `WGustTime`: gust summary / 最大陣風摘要
+- `Precp`: daily precipitation / 日累積雨量
+- `PrecpMax10`, `PrecpMax10Time`: 10-minute precipitation maximum / 10 分鐘最大降雨量
+- `PrecpHrMax`, `PrecpHrMaxTime`: hourly precipitation maximum / 1 小時最大降雨量
+- `SunShine`: sunshine duration / 日照時數
+- `GloblRad`: global radiation / 日射量
+- `EvapA`: Class A pan evaporation / A 盆蒸發量
+- `VisbMean`, `VisbAutoMean`: visibility summary / 能見度摘要
+- `UVIMax`, `UVIMaxTime`: UV maximum and time / 紫外線指數最大值及時間
+- `CloudAmount`, `CloudAmountSat`: cloud amount summary / 雲量摘要
 
-### Daily legacy columns
+### Common monthly legacy columns / 常見月資料舊欄位
 
-Common daily legacy columns:
+- `StnPres`, `SeaPres`: mean pressure / 平均氣壓
+- `Tx`: mean air temperature / 平均氣溫
+- `TxMaxAbs`, `TxMaxAbsTime`: absolute monthly maximum temperature / 月絕對最高溫
+- `TxMinAbs`, `TxMinAbsTime`: absolute monthly minimum temperature / 月絕對最低溫
+- `RH`: mean relative humidity / 平均相對濕度
+- `WS`, `WD`: wind summary / 風速風向摘要
+- `WSGust`, `WDGust`, `WGustTime`: gust summary / 陣風摘要
+- `Precp`: monthly precipitation / 月累積雨量
+- `PrecpDay`: precipitation days / 降雨日數
+- `PrecpHour`: precipitation duration / 降水時數
+- `PrecpMax10`, `PrecpMax60`, `PrecpHrMax`, `Precp1DayMax`: precipitation extremes / 降水極值摘要
+- `SunShine`, `SunShineRate`: sunshine summary / 日照摘要
+- `GloblRad`: radiation summary / 日射摘要
+- `EvapA`: Class A pan evaporation / A 盆蒸發量
+- `VisbMean`, `VisbAutoMean`: visibility summary / 能見度摘要
+- `UVIMax`, `UVIMaxTime`: UV summary / 紫外線摘要
+- `CloudAmount`, `CloudAmountSat`: cloud summary / 雲量摘要
+- `VaporPressure`: vapor pressure / 水氣壓
+- `TxSoil0cm` to `TxSoil500cm`: monthly soil temperature summaries / 月土壤溫度摘要
 
-- first column: date (`YYYY-MM-DD`)
-- `StnPres`, `SeaPres`: mean pressure values
-- `StnPresMax`, `StnPresMaxTime`: daily maximum station pressure and its time
-- `StnPresMin`, `StnPresMinTime`: daily minimum station pressure and its time
-- `Tx`: mean temperature
-- `TxMaxAbs`, `TxMaxAbsTime`: daily absolute maximum temperature and its time
-- `TxMinAbs`, `TxMinAbsTime`: daily absolute minimum temperature and its time
-- `TxRange`: daily temperature range when available
-- `Td`: mean dew point
-- `RH`: mean relative humidity
-- `RHMin`, `RHMinTime`: minimum relative humidity and its time
-- `WS`, `WD`: mean wind speed and prevailing wind direction
-- `WSGust`, `WDGust`, `WGustTime`: maximum gust, its direction, and time
-- `Precp`: daily precipitation accumulation
-- `PrecpMax10`, `PrecpMax10Time`: 10-minute precipitation maximum and time
-- `PrecpHrMax`, `PrecpHrMaxTime`: hourly precipitation maximum and time
-- `PrecpHour`: precipitation duration when available
-- `SunShine`: sunshine duration
-- `GloblRad`: global solar radiation
-- `EvapA`: Class A pan evaporation when available
-- `VisbMean`: mean visibility when available
-- `VisbAutoMean`: auto visibility mean when available
-- `UVIMax`, `UVIMaxTime`: maximum UV index and time when available
-- `CloudAmount`, `CloudAmountSat`: cloud amount summaries when available
-- `TxSoil0cm`, `TxSoil5cm`, `TxSoil10cm`, `TxSoil20cm`, `TxSoil30cm`, `TxSoil50cm`, `TxSoil100cm`: mean soil temperatures
-- `D_VMC010` to `D_VMC120`: legacy daily station-specific VMC fields in some files
+## Daily Update Automation / 每日自動更新
 
-### Monthly legacy columns
+The repository includes a GitHub Actions workflow for daily updates:
 
-Common monthly legacy columns:
+本 repository 已內建 GitHub Actions 每日自動更新流程：
 
-- first column: month key (`YYYY-MM-01` in the compatibility rebuild)
-- `StnPres`, `SeaPres`: mean pressure values
-- `StnPresMax`, `StnPresMaxTime`: monthly maximum station pressure and its date/time marker
-- `StnPresMin`, `StnPresMinTime`: monthly minimum station pressure and its date/time marker
-- `Tx`: mean air temperature
-- `TxMaxAbs`, `TxMaxAbsTime`: absolute maximum temperature and date/time marker
-- `TxMinAbs`, `TxMinAbsTime`: absolute minimum temperature and date/time marker
-- `TxRange`: temperature range when available
-- `Td`: mean dew point temperature
-- `RH`: mean relative humidity
-- `RHMin`, `RHMinTime`: minimum relative humidity and date/time marker
-- `WS`, `WD`: mean wind speed and prevailing wind direction
-- `WSGust`, `WDGust`, `WGustTime`: peak gust summary
-- `Precp`: monthly precipitation accumulation
-- `PrecpDay`: number of precipitation days
-- `PrecpHour`: precipitation duration
-- `PrecpMax10`, `PrecpMax10Time`: 10-minute precipitation maximum and time marker
-- `PrecpMax60`, `PrecpMax60Time`: 60-minute precipitation maximum and time marker
-- `PrecpHrMax`, `PrecpHrMaxTime`: hourly precipitation maximum and time marker
-- `Precp1DayMax`, `Precp1DayMaxTime`: 1-day precipitation maximum and date marker
-- `SunShine`: sunshine duration
-- `SunShineRate`: sunshine rate when available
-- `GloblRad`: global solar radiation
-- `EvapA`: Class A pan evaporation when available
-- `VisbMean`, `VisbAutoMean`: visibility summaries when available
-- `UVIMax`, `UVIMaxTime`: UV index summaries when available
-- `CloudAmount`, `CloudAmountSat`: cloud amount summaries when available
-- `VaporPressure`: legacy vapor pressure field present in some old files
-- `TxSoil0cm`, `TxSoil5cm`, `TxSoil10cm`, `TxSoil20cm`, `TxSoil30cm`, `TxSoil50cm`, `TxSoil100cm`, `TxSoil200cm`, `TxSoil300cm`, `TxSoil500cm`: monthly soil temperature summaries
+- workflow: `.github/workflows/codis_daily_update.yml`
+- updater: `tools/run_daily_codis_update.py`
 
-## Important interpretation notes
+The update flow is:
 
-- The compatibility dataset is designed for maximum backward compatibility, not for minimum column count.
-- If your old script uses a known old column, it should continue to work with `data_codis_legacy_compatible`.
-- Extra CODIS columns are appended and can be ignored by old workflows.
-- Raw CODIS files may represent some values differently from the historical dataset, including missing-value style and some timing markers.
-- The raw CODIS rebuild removed duplicate timestamps found in the old database.
+更新流程如下：
 
-## Tools in this repository
+1. refresh current-year raw CODIS files into `data_codis_rebuild_full`
+2. rebuild matching compatibility files into `data_codis_legacy_compatible`
+3. sync compatible files back into `data`
+4. commit and push the updated results
+5. 將本年度 raw CODIS 檔更新到 `data_codis_rebuild_full`
+6. 重新產生對應的 `data_codis_legacy_compatible`
+7. 把相容版同步回 `data`
+8. commit 並 push 結果
+
+A duplicate check workflow is also kept:
+
+另外也保留每週重複資料檢查：
+
+- `.github/workflows/hourly-duplicate-report.yml`
+
+## Tools / 工具
 
 - `tools/rebuild_codis_database.py`
-  - rebuild raw data from official CODIS
+  - rebuild raw CODIS data / 重建原始 CODIS 資料
 - `tools/build_legacy_compatible_dataset.py`
-  - convert raw CODIS rebuild into the final legacy-compatible dataset
+  - build legacy-compatible output / 產生舊版相容資料
+- `tools/run_daily_codis_update.py`
+  - run the daily raw + compatibility + sync pipeline / 執行每日更新流程
+- `tools/build_push_plan.ps1`
+  - build chunked rollout plans / 產生分批推送計畫
+- `tools/apply_push_batch.ps1`
+  - apply one rollout batch with logs / 執行單一分批推送並保留 log
 - `tools/data_quality/duplicate_hourly_report.py`
-  - check hourly duplicate timestamps and duplicate content
+  - check duplicate hourly timestamps / 檢查時資料重複 timestamp
 
-Run the duplicate-hourly QC tool with:
+## Web Interface / 網頁介面
 
-```bash
-python tools/data_quality/duplicate_hourly_report.py
-```
+If you do not want to browse the repository directly, a web interface is available:
 
-## Station list
+若不想直接瀏覽 GitHub repository，也可以使用網頁介面：
 
-A station metadata list can be found here:
-- <https://github.com/Raingel/weather_station_list>
-
-## Web interface
-
-If you are not familiar with GitHub, you can also use the web interface:
 - <https://mycolab.pp.nchu.edu.tw/historical_weather/>
 
-## Citation
+## Citation / 引用
 
-Please cite as:
+Please cite / 建議引用：
 
 Ou, J.-H., Kuo, C.-H., Wu, Y.-F., Lin, G.-C., Lee, M.-H., Chen, R.-K., Chou, H.-P., Wu, H.-Y., Chu, S.-C., Lai, Q.-J., Tsai, Y.-C., Lin, C.-C., Kuo, C.-C., Liao, C.-T., Chen, Y.-N., Chu, Y.-W., Chen, C.-Y., 2023. Application-oriented deep learning model for early warning of rice blast in Taiwan. Ecological Informatics 73, 101950. <https://doi.org/10.1016/j.ecoinf.2022.101950>
