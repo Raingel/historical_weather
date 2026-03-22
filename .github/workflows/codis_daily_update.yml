@@ -35,14 +35,21 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run CODIS daily update pipeline
-        run: python -u tools/run_daily_codis_update.py
+        run: python -u tools/run_daily_codis_update.py --lookback-days 60
 
       - name: Commit changes
         run: |
           git config --global user.email "allenstorm2005@gmail.com"
           git config --global user.name "Raingel (GitHub Action)"
-          git add data data_codis_rebuild_full data_codis_legacy_compatible reports README.md tools .github/workflows
-          git diff --cached --quiet || git commit -m "daily CODIS update $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          git config --global core.autocrlf input
+          git config --global core.safecrlf false
+          git add -A .
+          git status --short
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "daily CODIS update $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          fi
 
       - name: Push changes
         uses: ad-m/github-push-action@master

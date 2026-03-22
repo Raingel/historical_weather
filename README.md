@@ -1,4 +1,4 @@
-﻿# Taiwan Historical Weather Database / 台灣歷史氣象資料庫
+# Taiwan Historical Weather Database / 台灣歷史氣象資料庫
 
 Taiwan historical weather observations rebuilt from official CWA/CODIS station data, with a legacy-compatible CSV interface for downstream users.
 
@@ -84,9 +84,9 @@ The new pipeline now works in two stages:
    - converts raw CODIS output into a legacy-compatible superset
    - 將原始 CODIS 重建結果轉成舊版相容的 superset 資料
 
-A daily updater was also added:
+A daily updater was also added. It refreshes a rolling 60-day window so the workflow stays fast even near year end:
 
-另外也新增了每日更新流程：
+另外也新增了每日更新流程。它只會更新最近 60 天，避免年底時 workflow 因為重跑整年而變得太慢：
 
 - `tools/run_daily_codis_update.py`
 - `.github/workflows/codis_daily_update.yml`
@@ -275,14 +275,16 @@ The update flow is:
 
 更新流程如下：
 
-1. refresh current-year raw CODIS files into `data_codis_rebuild_full`
-2. rebuild matching compatibility files into `data_codis_legacy_compatible`
-3. sync compatible files back into `data`
-4. commit and push the updated results
-5. 將本年度 raw CODIS 檔更新到 `data_codis_rebuild_full`
-6. 重新產生對應的 `data_codis_legacy_compatible`
-7. 把相容版同步回 `data`
-8. commit 並 push 結果
+1. refresh the most recent 60 days of raw CODIS data into `data_codis_rebuild_full`
+2. merge the refreshed window back into full-year raw files
+3. rebuild matching compatibility files into `data_codis_legacy_compatible`
+4. sync compatible files back into `data`
+5. commit and push the updated results
+6. 將最近 60 天的 raw CODIS 資料更新到 `data_codis_rebuild_full`
+7. 再把這段更新 merge 回完整年檔
+8. 重新產生對應的 `data_codis_legacy_compatible`
+9. 把相容版同步回 `data`
+10. commit 並 push 結果
 
 A duplicate check workflow is also kept:
 

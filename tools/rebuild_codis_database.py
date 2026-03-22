@@ -215,6 +215,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--start-year", type=int)
     parser.add_argument("--end-year", type=int)
+    parser.add_argument("--start-date")
+    parser.add_argument("--end-date")
     parser.add_argument("--max-stations", type=int, default=None)
     parser.add_argument("--timeout", type=int, default=60)
     parser.add_argument("--pause-seconds", type=float, default=0.0)
@@ -246,6 +248,12 @@ def parse_date(value: object) -> Optional[date]:
         return pd.to_datetime(text).date()
     except Exception:
         return None
+
+
+def parse_iso_date(value: Optional[str]) -> Optional[date]:
+    if not value:
+        return None
+    return date.fromisoformat(value)
 
 
 def coalesce_earliest(values: Sequence[Optional[date]]) -> Optional[date]:
@@ -416,6 +424,10 @@ def build_station_plans(
             planned_start = max(planned_start, date(args.start_year, 1, 1))
         if args.end_year is not None:
             planned_end = min(planned_end, date(args.end_year, 12, 31))
+        if args.start_date:
+            planned_start = max(planned_start, parse_iso_date(args.start_date))
+        if args.end_date:
+            planned_end = min(planned_end, parse_iso_date(args.end_date))
         if planned_start > planned_end:
             continue
 
@@ -571,7 +583,7 @@ def frames_for_station_year(
     combined["timestamp"] = pd.to_datetime(combined["timestamp"], errors="coerce")
     combined = combined[combined["timestamp"].notna()].copy()
     if granularity == "hourly":
-        start_ts = pd.Timestamp(start_day)
+        start_ts = pd.Timestamp(start_day) + pd.Timedelta(hours=1)
         end_ts = pd.Timestamp(end_day) + pd.Timedelta(days=1)
         combined = combined[(combined["timestamp"] >= start_ts) & (combined["timestamp"] <= end_ts)].copy()
     elif granularity == "daily":
@@ -592,6 +604,67 @@ def format_timestamp_for_csv(granularity: str, series: pd.Series) -> pd.Series:
     return series.dt.strftime("%Y-%m-%d")
 
 
+def timestamp_window(
+    granularity: str,
+    start_day: date,
+    end_day: date,
+) -> Tuple[pd.Timestamp, pd.Timestamp]:
+    start_ts = pd.Timestamp(start_day)
+    if granularity == "hourly":
+        return start_ts + pd.Timedelta(hours=1), pd.Timestamp(end_day) + pd.Timedelta(days=1)
+    if granularity == "daily":
+        return start_ts, pd.Timestamp(end_day)
+    start_month = pd.Timestamp(start_day).to_period("M").to_timestamp()
+    end_month = pd.Timestamp(end_day).to_period("M").to_timestamp()
+    return start_month, end_month
+
+
+def read_existing_year_file(path: Path) -> pd.DataFrame:
+    if not path.exists():
+        return pd.DataFrame()
+    df = pd.read_csv(path, encoding="utf-8-sig")
+    if "timestamp" not in df.columns:
+        return pd.DataFrame()
+    df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+    df = df[df["timestamp"].notna()].copy()
+    if df.empty:
+        return df
+    df.sort_values("timestamp", inplace=True)
+    df.drop_duplicates(subset=["timestamp"], keep="last", inplace=True)
+    ordered_columns = ["timestamp"] + [col for col in df.columns if col != "timestamp"]
+    return df.loc[:, ordered_columns]
+
+
+def merge_window_into_year(
+    existing_df: pd.DataFrame,
+    window_df: pd.DataFrame,
+    granularity: str,
+    start_day: date,
+    end_day: date,
+) -> pd.DataFrame:
+    if existing_df.empty:
+        merged = window_df.copy()
+    elif window_df.empty:
+        merged = existing_df.copy()
+    else:
+        start_ts, end_ts = timestamp_window(granularity, start_day, end_day)
+        if granularity == "monthly":
+            existing_mask = existing_df["timestamp"].dt.to_period("M").between(
+                start_ts.to_period("M"),
+                end_ts.to_period("M"),
+            )
+        else:
+            existing_mask = existing_df["timestamp"].between(start_ts, end_ts)
+        kept_existing = existing_df.loc[~existing_mask].copy()
+        merged = combine_frames([kept_existing, window_df])
+    if merged.empty:
+        return merged
+    merged.sort_values("timestamp", inplace=True)
+    merged.drop_duplicates(subset=["timestamp"], keep="last", inplace=True)
+    ordered_columns = ["timestamp"] + sorted([col for col in merged.columns if col != "timestamp"])
+    return merged.loc[:, ordered_columns]
+
+
 def rebuild_station_data(
     client: CodisClient,
     plans: Sequence[StationPlan],
@@ -606,11 +679,22 @@ def rebuild_station_data(
         for granularity in args.granularity:
             for year in range(plan.planned_start.year, plan.planned_end.year + 1):
                 out_path = year_output_path(output_root, plan.station_id, granularity, year)
-                if out_path.exists() and not args.overwrite:
+                partial_window = bool(args.start_date or args.end_date)
+                if out_path.exists() and not args.overwrite and not partial_window:
                     continue
 
+                year_start = max(plan.planned_start, date(year, 1, 1))
+                year_end = min(plan.planned_end, date(year, 12, 31))
                 df = frames_for_station_year(client, plan, granularity, year, args)
-                if df.empty:
+                existing_df = read_existing_year_file(out_path) if partial_window else pd.DataFrame()
+                final_df = df
+                status = "written"
+                if partial_window:
+                    final_df = merge_window_into_year(existing_df, df, granularity, year_start, year_end)
+                    if df.empty and not existing_df.empty:
+                        status = "retained_existing"
+
+                if final_df.empty:
                     span_rows.append(
                         {
                             "station_id": plan.station_id,
@@ -621,20 +705,20 @@ def rebuild_station_data(
                             "row_count": 0,
                             "observed_start": "",
                             "observed_end": "",
-                            "planned_start": plan.planned_start.isoformat(),
-                            "planned_end": plan.planned_end.isoformat(),
+                            "planned_start": year_start.isoformat(),
+                            "planned_end": year_end.isoformat(),
                             "output_path": str(out_path),
                             "status": "empty",
                         }
                     )
                     continue
 
-                csv_df = df.copy()
+                csv_df = final_df.copy()
                 csv_df["timestamp"] = format_timestamp_for_csv(granularity, csv_df["timestamp"])
                 csv_df.to_csv(out_path, index=False, encoding="utf-8-sig")
 
-                observed_start = df["timestamp"].min()
-                observed_end = df["timestamp"].max()
+                observed_start = final_df["timestamp"].min()
+                observed_end = final_df["timestamp"].max()
                 span_rows.append(
                     {
                         "station_id": plan.station_id,
@@ -642,13 +726,13 @@ def rebuild_station_data(
                         "stn_type": plan.stn_type,
                         "granularity": granularity,
                         "year": year,
-                        "row_count": int(len(df)),
+                        "row_count": int(len(final_df)),
                         "observed_start": observed_start.isoformat() if pd.notna(observed_start) else "",
                         "observed_end": observed_end.isoformat() if pd.notna(observed_end) else "",
-                        "planned_start": plan.planned_start.isoformat(),
-                        "planned_end": plan.planned_end.isoformat(),
+                        "planned_start": year_start.isoformat(),
+                        "planned_end": year_end.isoformat(),
                         "output_path": str(out_path),
-                        "status": "written",
+                        "status": status,
                     }
                 )
 

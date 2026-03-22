@@ -52,6 +52,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--station", action="append", dest="stations")
     parser.add_argument("--start-year", type=int)
     parser.add_argument("--end-year", type=int)
+    parser.add_argument("--start-date")
+    parser.add_argument("--end-date")
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument("--verbose", action="store_true")
     return parser.parse_args()
@@ -268,7 +270,7 @@ def main() -> int:
                             fallback_cells += 1
 
         with out_path.open("w", encoding="utf-8-sig", newline="") as fh:
-            writer = csv.writer(fh)
+            writer = csv.writer(fh, lineterminator="\n")
             writer.writerow(target_header)
             writer.writerows(output_rows)
 
@@ -295,6 +297,8 @@ def main() -> int:
         "legacy_root": str(legacy_root.resolve()),
         "output_root": str(output_root.resolve()),
         "selected_stations": sorted(selected_stations),
+        "start_date": args.start_date or "",
+        "end_date": args.end_date or "",
         "raw_file_count": len(raw_files),
         "legacy_file_count": len(legacy_files),
         "transformed_files": transformed,

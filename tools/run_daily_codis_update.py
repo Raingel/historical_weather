@@ -2,7 +2,7 @@
 """Daily updater for the CODIS raw + legacy-compatible datasets.
 
 Pipeline:
-1. Refresh current-year CODIS raw files into data_codis_rebuild_full.
+1. Refresh a recent CODIS window into data_codis_rebuild_full.
 2. Rebuild matching legacy-compatible files into data_codis_legacy_compatible.
 3. Sync compatible files back into data/ so existing downstream code keeps working.
 """
@@ -14,9 +14,9 @@ import json
 import shutil
 import subprocess
 import sys
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import List
+from typing import List, Tuple
 
 
 def parse_args() -> argparse.Namespace:
@@ -27,21 +27,37 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--report-dir', default='reports/codis_daily_update')
     parser.add_argument('--start-year', type=int)
     parser.add_argument('--end-year', type=int)
+    parser.add_argument('--start-date')
+    parser.add_argument('--end-date')
+    parser.add_argument('--lookback-days', type=int, default=60)
     parser.add_argument('--station', action='append', dest='stations')
     parser.add_argument('--granularity', nargs='+', choices=['hourly', 'daily', 'monthly'], default=['hourly', 'daily', 'monthly'])
     parser.add_argument('--skip-sync-data', action='store_true')
     parser.add_argument('--verbose', action='store_true')
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.lookback_days < 1:
+        parser.error('--lookback-days must be at least 1')
+    return args
+
+
+def target_date_range(args: argparse.Namespace) -> Tuple[date, date]:
+    if args.start_date and args.end_date:
+        start = date.fromisoformat(args.start_date)
+        end = date.fromisoformat(args.end_date)
+    elif args.start_year is not None and args.end_year is not None:
+        start = date(args.start_year, 1, 1)
+        end = date(args.end_year, 12, 31)
+    else:
+        end = datetime.now().date()
+        start = end - timedelta(days=args.lookback_days - 1)
+    if start > end:
+        raise ValueError('start date must not be later than end date')
+    return start, end
 
 
 def target_years(args: argparse.Namespace) -> List[int]:
-    if args.start_year is not None and args.end_year is not None:
-        return list(range(args.start_year, args.end_year + 1))
-    now = datetime.now()
-    years = [now.year]
-    if now.month == 1 and now.day <= 5:
-        years.insert(0, now.year - 1)
-    return years
+    start, end = target_date_range(args)
+    return list(range(start.year, end.year + 1))
 
 
 def run_command(command: List[str], cwd: Path) -> None:
@@ -81,6 +97,7 @@ def main() -> int:
     report_dir = cwd / args.report_dir
     report_dir.mkdir(parents=True, exist_ok=True)
 
+    start_date, end_date = target_date_range(args)
     years = target_years(args)
     stations = args.stations or []
     start_year = min(years)
@@ -97,6 +114,10 @@ def main() -> int:
         str(start_year),
         '--end-year',
         str(end_year),
+        '--start-date',
+        start_date.isoformat(),
+        '--end-date',
+        end_date.isoformat(),
         '--overwrite',
     ]
     if args.verbose:
@@ -122,6 +143,10 @@ def main() -> int:
         str(start_year),
         '--end-year',
         str(end_year),
+        '--start-date',
+        start_date.isoformat(),
+        '--end-date',
+        end_date.isoformat(),
         '--overwrite',
     ]
     if args.verbose:
@@ -138,6 +163,9 @@ def main() -> int:
     summary = {
         'timestamp': datetime.now().isoformat(timespec='seconds'),
         'years': years,
+        'start_date': start_date.isoformat(),
+        'end_date': end_date.isoformat(),
+        'lookback_days': args.lookback_days,
         'stations': stations,
         'granularity': args.granularity,
         'raw_root': str((cwd / args.raw_root).resolve()),
