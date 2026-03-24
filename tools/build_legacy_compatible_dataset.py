@@ -17,6 +17,7 @@ import argparse
 import csv
 import json
 import shutil
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
@@ -119,6 +120,67 @@ def build_old_lookup(header: Sequence[str], rows: Sequence[Sequence[str]]) -> Di
         if timestamp and timestamp not in lookup:
             lookup[timestamp] = row_dict
     return lookup
+
+
+def parse_iso_date(value: Optional[str]) -> Optional[date]:
+    if not value:
+        return None
+    return date.fromisoformat(value)
+
+
+def timestamp_in_window(granularity: str, timestamp: str, start_day: date, end_day: date) -> bool:
+    ts = datetime.fromisoformat(timestamp)
+    if granularity == "hourly":
+        window_start = datetime.combine(start_day, datetime.min.time()) + timedelta(hours=1)
+        window_end = datetime.combine(end_day + timedelta(days=1), datetime.min.time())
+        return window_start <= ts <= window_end
+    if granularity == "daily":
+        window_start = datetime.combine(start_day, datetime.min.time())
+        window_end = datetime.combine(end_day, datetime.min.time())
+        return window_start <= ts <= window_end
+    month_start = start_day.replace(day=1)
+    month_end = end_day.replace(day=1)
+    ts_month = ts.date().replace(day=1)
+    return month_start <= ts_month <= month_end
+
+
+def merge_window_rows(
+    granularity: str,
+    target_header: Sequence[str],
+    output_rows: Sequence[Sequence[str]],
+    base_header: Sequence[str],
+    base_rows: Sequence[Sequence[str]],
+    start_day: Optional[date],
+    end_day: Optional[date],
+) -> Tuple[List[str], List[List[str]]]:
+    if not start_day or not end_day or not base_header:
+        return list(target_header), list(output_rows)
+
+    final_header = list(target_header)
+    for column in base_header:
+        if column not in final_header:
+            final_header.append(column)
+
+    base_time_col = time_column_name(base_header)
+    target_time_col = time_column_name(target_header)
+    if base_time_col is None or target_time_col is None:
+        return final_header, [list(row) + [""] * max(0, len(final_header) - len(row)) for row in output_rows]
+
+    merged: Dict[str, Dict[str, str]] = {}
+    for row_dict in build_row_dicts(base_header, base_rows):
+        timestamp = row_dict.get(base_time_col, "")
+        if not timestamp:
+            continue
+        merged[timestamp] = {column: row_dict.get(column, "") for column in final_header}
+
+    for row_dict in build_row_dicts(target_header, output_rows):
+        timestamp = row_dict.get(target_time_col, "")
+        if not timestamp:
+            continue
+        merged[timestamp] = {column: row_dict.get(column, "") for column in final_header}
+
+    ordered = sorted(merged.items(), key=lambda item: datetime.fromisoformat(item[0]))
+    return final_header, [[row_dict.get(column, "") for column in final_header] for _, row_dict in ordered]
 
 
 def should_process(station_id: str, year: int, args: argparse.Namespace) -> bool:
@@ -252,6 +314,22 @@ def main() -> int:
         old_lookup = build_old_lookup(legacy_header, legacy_rows)
         output_rows = build_compatible_rows(granularity, legacy_header, new_header, new_rows, old_lookup)
         target_header = compatible_header(legacy_header, new_header)
+
+        base_header = legacy_header
+        base_rows = legacy_rows
+        if not base_header and out_path.exists():
+            base_header, base_rows = read_csv_rows(out_path)
+        start_day = parse_iso_date(args.start_date)
+        end_day = parse_iso_date(args.end_date)
+        target_header, output_rows = merge_window_rows(
+            granularity,
+            target_header,
+            output_rows,
+            base_header,
+            base_rows,
+            start_day,
+            end_day,
+        )
 
         derived_map = LEGACY_DERIVED_COLUMNS.get(granularity, {})
         if legacy_header:
