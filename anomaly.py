@@ -4,7 +4,13 @@ import numpy as np
 from datetime import datetime, timedelta
 import os
 import json
+import sys
 from calendar import monthrange
+
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
 # 載入站點資料
 sta_URI = "https://raw.githubusercontent.com/Raingel/weather_station_list/refs/heads/main/data/weather_sta_list.csv"
@@ -130,7 +136,7 @@ for target_year, target_month in target_months:
                 print(f"站點 {sta_id} 當前資料缺少必要變數")
                 continue
             df['md'] = df.index.strftime('%m-%d')
-            df_period = df[(df.index >= period_start) & (df.index <= period_end)]
+            df_period = df[(df.index >= period_start) & (df.index <= period_end)].copy()
             if df_period.empty:
                 print(f"站點 {sta_id} 在期間內沒有當前資料")
                 continue
@@ -188,4 +194,3 @@ for target_year, target_month in target_months:
         print(f"在 {target_year} 年 {target_month} 月沒有可用的資料。")
 
 # %%
-
