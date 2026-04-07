@@ -30,6 +30,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--start-date')
     parser.add_argument('--end-date')
     parser.add_argument('--lookback-days', type=int, default=60)
+    parser.add_argument('--timeout', type=int, default=60)
+    parser.add_argument('--max-retries', type=int, default=3)
+    parser.add_argument('--retry-backoff-seconds', type=float, default=2.0)
+    parser.add_argument('--strict-failed-chunks', action='store_true')
     parser.add_argument('--station', action='append', dest='stations')
     parser.add_argument('--granularity', nargs='+', choices=['hourly', 'daily', 'monthly'], default=['hourly', 'daily', 'monthly'])
     parser.add_argument('--skip-sync-data', action='store_true')
@@ -119,7 +123,15 @@ def main() -> int:
         '--end-date',
         end_date.isoformat(),
         '--overwrite',
+        '--timeout',
+        str(args.timeout),
+        '--max-retries',
+        str(args.max_retries),
+        '--retry-backoff-seconds',
+        str(args.retry_backoff_seconds),
     ]
+    if args.strict_failed_chunks:
+        raw_cmd.append('--strict-failed-chunks')
     if args.verbose:
         raw_cmd.append('--verbose')
     raw_cmd.append('--granularity')
