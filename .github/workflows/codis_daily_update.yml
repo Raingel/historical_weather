@@ -2,6 +2,40 @@
 
 on:
   workflow_dispatch:
+    inputs:
+      start_date:
+        description: "Backfill start date (YYYY-MM-DD). Leave blank to use lookback-days."
+        required: false
+        type: string
+      end_date:
+        description: "Backfill end date (YYYY-MM-DD). Leave blank to use lookback-days."
+        required: false
+        type: string
+      lookback_days:
+        description: "Used only when start/end date are blank."
+        required: false
+        default: "60"
+        type: string
+      timeout:
+        description: "CODIS request timeout seconds."
+        required: false
+        default: "60"
+        type: string
+      max_retries:
+        description: "Retries per CODIS request."
+        required: false
+        default: "6"
+        type: string
+      retry_backoff_seconds:
+        description: "Linear backoff base seconds."
+        required: false
+        default: "5"
+        type: string
+      strict_failed_chunks:
+        description: "Fail workflow if any chunk still fails after retries."
+        required: false
+        default: false
+        type: boolean
   schedule:
     - cron: '0 5 * * *'
 
@@ -35,7 +69,20 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run CODIS daily update pipeline
-        run: python -u tools/run_daily_codis_update.py --lookback-days 60
+        run: |
+          ARGS=(
+            --lookback-days "${{ inputs.lookback_days || '60' }}"
+            --timeout "${{ inputs.timeout || '60' }}"
+            --max-retries "${{ inputs.max_retries || '6' }}"
+            --retry-backoff-seconds "${{ inputs.retry_backoff_seconds || '5' }}"
+          )
+          if [ -n "${{ inputs.start_date }}" ] && [ -n "${{ inputs.end_date }}" ]; then
+            ARGS+=(--start-date "${{ inputs.start_date }}" --end-date "${{ inputs.end_date }}")
+          fi
+          if [ "${{ inputs.strict_failed_chunks || 'false' }}" = "true" ]; then
+            ARGS+=(--strict-failed-chunks)
+          fi
+          python -u tools/run_daily_codis_update.py "${ARGS[@]}"
 
       - name: Commit changes
         run: |

@@ -16,6 +16,7 @@ from typing import Dict, Iterator, List, Optional, Sequence, Tuple
 
 import pandas as pd
 import requests
+import time
 
 
 STATION_LIST_URL = "https://codis.cwa.gov.tw/api/station_list"
@@ -219,6 +220,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--end-date")
     parser.add_argument("--max-stations", type=int, default=None)
     parser.add_argument("--timeout", type=int, default=60)
+    parser.add_argument("--max-retries", type=int, default=3)
+    parser.add_argument("--retry-backoff-seconds", type=float, default=2.0)
+    parser.add_argument("--skip-failed-chunks", action="store_true", default=True)
+    parser.add_argument("--strict-failed-chunks", action="store_false", dest="skip_failed_chunks")
     parser.add_argument("--pause-seconds", type=float, default=0.0)
     parser.add_argument(
         "--trace-precipitation-mode",
@@ -322,8 +327,11 @@ def normalize_value(column_name: str, value: object, trace_mode: str) -> object:
 
 
 class CodisClient:
-    def __init__(self, timeout: int) -> None:
+    def __init__(self, timeout: int, max_retries: int, retry_backoff_seconds: float, verbose: bool = False) -> None:
         self.timeout = timeout
+        self.max_retries = max(1, max_retries)
+        self.retry_backoff_seconds = max(0.0, retry_backoff_seconds)
+        self.verbose = verbose
         self.session = requests.Session()
         self.session.headers.update(REQUEST_HEADERS)
 
@@ -359,13 +367,32 @@ class CodisClient:
             "start": f"{start_day.isoformat()}T00:00:00",
             "end": f"{end_day.isoformat()}T23:59:59" if granularity == "hourly" else f"{end_day.isoformat()}T00:00:00",
         }
-        response = self.session.post(
-            "https://codis.cwa.gov.tw/api/station",
-            data=payload,
-            timeout=self.timeout,
-        )
-        response.raise_for_status()
-        return response.json()
+        last_error: Optional[Exception] = None
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                response = self.session.post(
+                    "https://codis.cwa.gov.tw/api/station",
+                    data=payload,
+                    timeout=self.timeout,
+                )
+                response.raise_for_status()
+                return response.json()
+            except requests.RequestException as exc:
+                last_error = exc
+                if attempt >= self.max_retries:
+                    break
+                wait_seconds = self.retry_backoff_seconds * attempt
+                if self.verbose:
+                    print(
+                        f"[WARN] CODIS request failed station={station_id} granularity={granularity} "
+                        f"range={start_day.isoformat()}..{end_day.isoformat()} "
+                        f"attempt={attempt}/{self.max_retries} wait={wait_seconds:.1f}s error={exc}"
+                    )
+                if wait_seconds > 0:
+                    time.sleep(wait_seconds)
+
+        assert last_error is not None
+        raise last_error
 
 
 def load_reference_station_list(source: str) -> pd.DataFrame:
@@ -570,10 +597,19 @@ def frames_for_station_year(
     for chunk_start, chunk_end in chunk_ranges:
         if args.verbose:
             print(f"[INFO] fetch {granularity} station={plan.station_id} {chunk_start.isoformat()}..{chunk_end.isoformat()}")
-        payload = client.fetch_observations(plan.station_id, plan.stn_type, granularity, chunk_start, chunk_end)
-        frames.append(rows_to_dataframe(payload, granularity, args.trace_precipitation_mode))
+        try:
+            payload = client.fetch_observations(plan.station_id, plan.stn_type, granularity, chunk_start, chunk_end)
+            frames.append(rows_to_dataframe(payload, granularity, args.trace_precipitation_mode))
+        except requests.RequestException as exc:
+            message = (
+                f"[WARN] skip chunk station={plan.station_id} granularity={granularity} "
+                f"range={chunk_start.isoformat()}..{chunk_end.isoformat()} error={exc}"
+            )
+            if args.skip_failed_chunks:
+                print(message)
+                continue
+            raise RuntimeError(message) from exc
         if args.pause_seconds > 0:
-            import time
             time.sleep(args.pause_seconds)
 
     combined = combine_frames(frames)
@@ -746,7 +782,12 @@ def main() -> None:
     output_root = Path(args.output_root)
     report_dir = Path(args.report_dir)
 
-    client = CodisClient(timeout=args.timeout)
+    client = CodisClient(
+        timeout=args.timeout,
+        max_retries=args.max_retries,
+        retry_backoff_seconds=args.retry_backoff_seconds,
+        verbose=args.verbose,
+    )
     catalog_df = client.get_station_catalog()
     reference_df = load_reference_station_list(args.reference_station_list)
     plans = build_station_plans(catalog_df, reference_df, args)
