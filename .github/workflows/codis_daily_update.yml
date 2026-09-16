@@ -1,6 +1,11 @@
 ﻿name: CODIS Daily Update
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/codis_daily_update.yml'
   workflow_dispatch:
     inputs:
       start_date:
