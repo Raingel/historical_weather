@@ -16,6 +16,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            tools
+            requirements.txt
+            data/466920
+            data_codis_rebuild_full/466920
+            data_codis_legacy_compatible/466920
+          sparse-checkout-cone-mode: false
 
       - name: Set up Python
         uses: actions/setup-python@v5
