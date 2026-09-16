@@ -49,7 +49,7 @@ permissions:
 
 concurrency:
   group: codis-daily-update-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   codis-daily-update:
