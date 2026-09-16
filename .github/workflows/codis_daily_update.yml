@@ -69,6 +69,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run CODIS daily update pipeline
+        shell: bash
         run: |
           ARGS=(
             --lookback-days "${{ inputs.lookback_days || '60' }}"
@@ -82,7 +83,31 @@ jobs:
           if [ "${{ inputs.strict_failed_chunks || 'false' }}" = "true" ]; then
             ARGS+=(--strict-failed-chunks)
           fi
-          python -u tools/run_daily_codis_update.py "${ARGS[@]}"
+
+          mkdir -p reports/codis_daily_update
+          set +e
+          set -o pipefail
+          python -u tools/run_daily_codis_update.py "${ARGS[@]}" 2>&1 | tee reports/codis_daily_update/pipeline.log
+          PIPELINE_STATUS=${PIPESTATUS[0]}
+          set +o pipefail
+          set -e
+
+          grep -F "[WARN] skip chunk" reports/codis_daily_update/pipeline.log \
+            > reports/codis_daily_update/failed_chunks.log || true
+
+          FAILED_CHUNK_COUNT=$(wc -l < reports/codis_daily_update/failed_chunks.log)
+          echo "Failed CODIS chunks after retries: ${FAILED_CHUNK_COUNT}"
+
+          exit "${PIPELINE_STATUS}"
+
+      - name: Upload CODIS QC reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codis-daily-update-qc-${{ github.run_id }}
+          path: reports/codis_daily_update/
+          if-no-files-found: warn
+          retention-days: 30
 
       - name: Commit changes
         run: |
